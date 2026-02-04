@@ -1,0 +1,2460 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- مكتبة DOMPurify لتنظيف النصوص من الأكواد الخبيثة -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم اعرف منتجك</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <!-- مكتبة SheetJS لقراءة ملفات الإكسيل -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+    /* زر أصغر في الشاشات الصغيرة */
+    @media (max-width:700px) {
+        #bundles-list .bundle-item { padding: 8px; }
+        #bundles-list .bundle-delete-btn { padding: 6px 8px; min-width: 34px; height: 30px; border-radius: 6px; }
+    }
+    /* ---تنسيق شاشة الدخول المنبثقة --- */
+#login-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: var(--dark-sidebar); /* خلفية داكنة */
+    z-index: 99999; /* تظهر فوق كل شيء */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+}
+
+.login-box {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    text-align: center;
+    animation: zoomIn 0.3s ease;
+}
+
+.login-box h2 {
+    color: var(--main-blue);
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.login-box .form-group {
+    text-align: right;
+    margin-bottom: 15px;
+}
+
+.login-box input {
+    height: 45px;
+    font-size: 14px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+}
+
+.login-box input:focus {
+    border-color: var(--main-blue);
+}
+
+.login-footer {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* حركة ظهور النافذة */
+@keyframes zoomIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+        :root {
+            --main-blue: #1a73e8;
+            --dark-sidebar: #111827;
+            --bg-body: #f1f5f9;
+            --white: #ffffff;
+            --text-main: #334155;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #cbd5e1;
+        }
+
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background-color: var(--bg-body); margin: 0; display: flex; color: var(--text-main); min-height: 100vh; font-size: 13px; }
+
+        .sidebar { width: 200px; background: var(--dark-sidebar); color: white; position: fixed; height: 100vh; right: 0; padding: 10px; z-index: 1000; transition: 0.3s; }
+        .sidebar-brand { font-size: 14px; font-weight: 800; text-align: center; margin-bottom: 15px; color: #38bdf8; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
+        .nav-menu { list-style: none; padding: 0; }
+        .nav-link {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: #94a3b8;
+            text-decoration: none; border-radius: 6px; transition: 0.2s; cursor: pointer; border: none; background: transparent; width: 100%; font-size: 12px; font-weight: 600; margin-bottom: 4px;
+        }
+        .nav-link:hover, .nav-link.active { background: #1e293b; color: white; }
+        .nav-link.active { background: var(--main-blue); }
+
+        .main-content { flex: 1; margin-right: 200px; padding: 15px; width: calc(100% - 200px); }
+        
+        .stats-grid { display: flex; gap: 10px; margin-bottom: 15px; }
+        .stat-card { 
+            background: var(--white); padding: 8px 12px; border-radius: 8px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: center; 
+            gap: 10px; border: 1px solid var(--border); flex: 1;
+        }
+        .stat-icon { font-size: 16px; padding: 6px; border-radius: 6px; }
+        .stat-value { font-size: 16px; font-weight: 800; display: block; color: #0f172a; line-height: 1; }
+        .stat-label { font-size: 10px; color: #64748b; font-weight: 600; }
+
+        .panel { 
+            background: var(--white); border-radius: 10px; padding: 15px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: none; 
+            max-width: 100%; margin: 0 auto; border: 1px solid var(--border);
+        }
+        .panel.active { display: block; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .full-width { grid-column: span 2; }
+        .form-group { margin-bottom: 8px; position: relative; }
+        label { display: block; margin-bottom: 3px; font-weight: 700; font-size: 11px; color: #475569; }
+        input, textarea, select { 
+            width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); 
+            outline: none; transition: 0.2s; font-size: 12px; background: #f8fafc; height: 34px;
+        }
+        textarea { height: auto; }
+        input:focus { border-color: var(--main-blue); background: #fff; }
+
+        #editor-container { height: 120px; border-radius: 0 0 6px 6px; font-size: 13px; }
+        .ql-toolbar { padding: 4px !important; border-radius: 6px 6px 0 0; }
+        
+        .btn-group { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+        .btn { 
+            border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center;
+            gap: 5px; color: white; transition: 0.2s; height: 32px; flex: 1;
+        }
+        .btn-save { background: var(--success); }
+        .btn-update { background: var(--warning); }
+        .btn-red { background: var(--danger); }
+        .btn-gray { background: #64748b; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        #suggestions { 
+            position: absolute; top: 100%; left: 0; right: 0; background: white; 
+            z-index: 1000; border-radius: 0 0 6px 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            max-height: 150px; overflow-y: auto; display: none; border: 1px solid var(--border);
+        }
+        .sug-item { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 11px; display: flex; justify-content: space-between; }
+        .sug-item:hover { background: #eff6ff; }
+
+        .preview-flex { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .preview-card { 
+            width: 100%; max-width: 250px; min-height: 50px; border-radius: 6px; border: 1px solid #e2e8f0; 
+            position: relative; background: #f1f5f9; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .preview-card img, .preview-card video, .preview-card iframe { width: 100%; height: auto; object-fit: cover; border-radius: 5px; }
+        .remove-badge { 
+            position: absolute; top: 2px; right: 2px; background: var(--danger); 
+            color: white; border: none; border-radius: 50%; width: 16px; height: 16px; 
+            cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            font-size: 10px; font-weight: bold; z-index: 10;
+        }
+
+        .color-item-card {
+            background: #fff; border: 1px solid #ddd; padding: 5px 10px; 
+            border-radius: 20px; display: flex; align-items: center; gap: 8px; 
+            font-size: 11px; font-weight: bold;
+        }
+        .color-preview-dot { width: 15px; height: 15px; border-radius: 50%; border: 1px solid #ccc; }
+
+        @media (max-width: 900px) {
+            .sidebar { width: 50px; padding: 5px; }
+            .sidebar-brand, .nav-link span { display: none; }
+            .main-content { margin-right: 50px; width: calc(100% - 50px); }
+            .form-grid { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+            .btn-group { flex-wrap: wrap; }
+        }
+		/* تأثير عند التحويم على كروت الإحصائيات */
+.stat-card.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1.5px solid transparent;
+}
+.stat-card.clickable:hover {
+    transform: translateY(-5px);
+    border-color: var(--warning);
+    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.2);
+    background: #fffbeb; /* تغيير بسيط في الخلفية */
+}
+    </style>
+</head>
+<body>
+<!-- نافذة تسجيل الدخول الإجبارية -->
+<div id="login-overlay">
+    <div class="login-box">
+        <div style="font-size: 50px; color: var(--main-blue); margin-bottom: 10px;">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        <h2>تسجيل الدخول</h2>
+        <p style="color:#666; margin-bottom:20px; font-size:13px;">يرجى تسجيل الدخول للوصول إلى لوحة التحكم</p>
+        
+        <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="popup-email" placeholder="admin@example.com">
+        </div>
+        <div class="form-group">
+            <label>كلمة المرور</label>
+            <input type="password" id="popup-pass" placeholder="********">
+        </div>
+        
+        <button class="btn btn-save" onclick="handlePopupLogin()" style="width:100%; height:45px; font-size:14px; margin-top:10px;">
+            <i class="fas fa-sign-in-alt"></i> دخول آمن
+        </button>
+        
+        <div id="popup-msg" style="margin-top:15px; font-weight:bold; font-size:12px;"></div>
+        
+        <div class="login-footer">
+            نظام إدارة المنتجات - إصدار المطورين 2026
+        </div>
+    </div>
+</div>
+<aside class="sidebar">
+    <div class="sidebar-brand"><i class="fas fa-layer-group"></i> <span>لوحة التحكم المطور</span></div>
+    <ul class="nav-menu">
+        <li><button class="nav-link active" onclick="showPanel('p-products', this)"><i class="fas fa-box"></i> <span>المنتجات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-bundles', this)"><i class="fas fa-gift"></i> <span>أكواد باندل</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-ads', this)"><i class="fas fa-ad"></i> <span>الإعلانات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-notif', this)"><i class="fas fa-bullhorn"></i> <span>الإشعارات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-appearance-pro', this)"><i class="fas fa-palette"></i><span>المظهر</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-settings', this)"><i class="fas fa-cogs"></i> <span>الإعدادات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-sales-report', this)"><i class="fas fa-chart-line"></i> <span>تقارير المبيعات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-analytics', this)"><i class="fas fa-chart-pie"></i> <span>تحليل المبيعات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-maintenance', this)"><i class="fas fa-tools"></i> <span>وضع الصيانة</span></button></li>
+        <li><button class="nav-link" id="nav-users" onclick="showPanel('p-users', this)"><i class="fas fa-users-cog"></i> <span>المستخدمين والصلاحيات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-security', this)"><i class="fas fa-shield-alt"></i> <span>الحماية</span></button></li>
+
+    </ul>
+</aside>
+
+<main class="main-content">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <i class="fas fa-database stat-icon" style="color:#1a73e8; background:#eff6ff;"></i>
+            <div><span class="stat-value" id="count-total">0</span><span class="stat-label">المنتجات</span></div>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-tags stat-icon" style="color:#10b981; background:#f0fdf4;"></i>
+            <div><span class="stat-value" id="count-cats">0</span><span class="stat-label">الأقسام</span></div>
+        </div>
+        <div class="stat-card clickable" onclick="filterNoImageProducts()" title="اضغط لعرض المنتجات التي بلا صور">
+    <i class="fas fa-image-slash stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
+    <div>
+	</div>
+        <span class="stat-value" id="count-no-img">0</span>
+        <span class="stat-label">بلا صور </span>
+    </div>
+    </div>
+    <section id="p-products" class="panel active">
+        <div class="form-group">
+            <label>بحث أو إضافة (كود المنتج)</label>
+            <input type="text" id="productId" oninput="liveSearch(this.value)" placeholder="اكتب الكود هنا...." style="font-weight:bold; color:var(--main-blue);">
+            <div id="suggestions"></div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group"><label>اسم المنتج</label><input type="text" id="name"></div>
+            <div class="form-group"><label>السعر</label><input type="text" id="price"></div>
+            <div class="form-group full-width"><label>القسم / التصنيف</label><input type="text" id="p-category"></div>
+            
+            <div class="form-group full-width">
+                <label>التفاصيل</label>
+                <div id="editor-container"></div>
+            </div>
+
+<!-- بداية كود الصور المعدل مع زر الرفع -->
+<div class="form-group full-width">
+    <label>الصور (روابط مفصولة بفاصلة)</label>
+    <div style="display: flex; gap: 5px; align-items: flex-start;">
+        <!-- مربع النص الموجود مسبقاً -->
+        <textarea id="images" oninput="syncPreviews()" rows="1" placeholder="http://... , http://..." style="flex: 1;"></textarea>
+        
+        <!-- زر الرفع الجديد -->
+        <input type="file" id="cloudinaryInput" accept="image/*" style="display: none;" onchange="uploadImageToCloudinary(this)">
+        <button type="button" onclick="document.getElementById('cloudinaryInput').click()" class="btn" style="background: #e91e63; width: auto; padding: 0 15px; height: 34px;">
+            <i class="fas fa-cloud-upload-alt"></i> رفع صورة
+        </button>
+    </div>
+    
+    <!-- مؤشر حالة الرفع -->
+    <div id="cl-upload-status" style="display:none; font-size:11px; font-weight:bold; margin-top:5px;"></div>
+    
+    <!-- منطقة معاينة الصور -->
+    <div id="imagePreview" class="preview-flex"></div>
+</div>
+<!-- نهاية كود الصور المعدل -->->
+            <div class="form-group full-width">
+                <label>فيديو (يوتيوب أو رابط مباشر)</label>
+                <input type="text" id="video" oninput="syncVideo()" placeholder="https://www.youtube.com/watch?v=...">
+                <div id="videoPreview" class="preview-flex" style="margin-top:10px;"></div>
+            </div>
+        </div>
+        
+<!-- بداية قسم الألوان -->
+<div class="form-group" style="background:#f9f9f9; padding:15px; border-radius:10px; border:1px solid #eee; margin-top:10px;">
+    <label style="color:#1a73e8;">🎨 ألوان المنتج</label>
+    
+    <div style="display:flex; gap:10px; margin-bottom:10px; align-items: center;">
+        <!-- اسم اللون -->
+        <input id="cName" placeholder="الاسم (مثلاً: أحمر)" style="flex:1;">
+        
+        <!-- كود اللون -->
+        <input type="color" id="cCode" style="width:50px; height:34px; padding:0; cursor: pointer;">
+        
+        <!-- قسم رابط الصورة وزر الرفع -->
+        <div style="flex:2; display: flex; gap: 5px;">
+            <input id="cImg" placeholder="رابط الصورة" style="width:100%;">
+            
+            <!-- زر الرفع المخفي والظاهر -->
+            <input type="file" id="colorUploadInput" accept="image/*" style="display: none;" onchange="uploadColorImage(this)">
+            <button type="button" onclick="document.getElementById('colorUploadInput').click()" class="btn" style="background: #e91e63; width: 50px; padding: 0; display: flex; align-items: center; justify-content: center;" title="رفع صورة للون">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </button>
+        </div>
+
+        <!-- زر الإضافة -->
+        <button class="btn btn-save" onclick="addColorItem()" style="width:auto; padding:0 15px;">إضافة</button>
+    </div>
+
+    <!-- مؤشر حالة الرفع -->
+    <div id="color-upload-status" style="display:none; font-size:11px; font-weight:bold; margin-bottom:10px; text-align:center;"></div>
+
+    <div id="colorsPreview" class="preview-flex"></div>
+</div>
+<!-- نهاية قسم الألوان المعدل -->
+
+        <div class="btn-group">
+            <button id="mainBtn" class="btn btn-save" onclick="commitProduct()"><i class="fas fa-plus"></i> حفظ جديد</button>
+            <button class="btn btn-red" onclick="removeProduct()"><i class="fas fa-trash"></i> حذف</button>
+            <button class="btn btn-gray" onclick="clearForm()"><i class="fas fa-eraser"></i> تفريغ</button>
+        </div>
+<!-- قسم التعامل مع الإكسيل (رفع + نسخ احتياطي) -->
+        <div class="btn-group" style="margin-top: 15px; border-top: 2px dashed #cbd5e1; padding-top: 15px; background: #f8fafc; padding: 10px; border-radius: 8px;">
+            <div style="width:100%; text-align:center; margin-bottom:5px; font-weight:bold; color:#1e293b;">📥 إدارة المنتجات (Excel)</div>
+            
+            <input type="file" id="productExcelUpload" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleProductExcel(this)">
+            
+            <!-- زر الرفع -->
+            <button onclick="document.getElementById('productExcelUpload').click()" class="btn" style="background:#217346; color:white; flex:2;">
+                <i class="fas fa-file-excel"></i> رفع ملف
+            </button>
+            
+            <!-- زر النسخ الاحتياطي (الجديد) -->
+            <button onclick="downloadProductsBackup()" class="btn" style="background:#f59e0b; color:white; flex:2;">
+                <i class="fas fa-file-export"></i> نسخ احتياطي
+            </button>
+
+            <!-- زر النموذج -->
+            <button onclick="downloadProductTemplate()" class="btn btn-gray" title="تحميل نموذج فارغ" style="flex:1;">
+                <i class="fas fa-download"></i> نموذج
+            </button>
+        </div>
+        <div id="prod-upload-status" style="margin-top:10px; font-size:12px; font-weight:bold; text-align:center; display:none;"></div>
+    </section>
+    <section id="p-notif" class="panel">
+        <h3 style="margin:0 0 10px 0; font-size:14px;">🔔 إرسال تنبيه للتطبيق</h3>
+        <div class="form-group"><label>نص الإشعار</label><input type="text" id="notifyMsg"></div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>النوع</label>
+                <select id="notifyType">
+                    <option value="info">أزرق</option>
+                    <option value="warning">برتقالي</option>
+                    <option value="danger">أحمر</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>الحالة</label>
+                <select id="notifStatus">
+                    <option value="true">تفعيل</option>
+                    <option value="false">إخفاء</option>
+                </select>
+            </div>
+        </div>
+        <button onclick="sendNotification()" class="btn btn-update" style="width:100%; margin-top:10px;">تحديث</button>
+    </section>
+
+    <section id="p-ads" class="panel">
+        <h3 style="margin:0 0 15px 0; font-size:14px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            📢 مدير الإعلانات المتقدم (AdSense & Popups)
+        </h3>
+        
+        <div class="form-group">
+            <label>نوع المحتوى</label>
+            <select id="adSourceType" onchange="toggleAdInputs()" style="background:#f0f9ff; border:1px solid #bae6fd;">
+                <option value="image">صورة (Banner Image)</option>
+                <option value="code">كود برمجي (AdSense / HTML)</option>
+            </select>
+        </div>
+
+        <div id="input-image-group">
+            <div class="form-group"><label>رابط الصورة</label><input type="text" id="adImg" placeholder="https://..."></div>
+            <div class="form-group"><label>رابط التوجيه (عند النقر)</label><input type="text" id="adLink" placeholder="https://..."></div>
+        </div>
+
+        <div id="input-code-group" style="display:none;">
+            <div class="form-group full-width">
+                <label>كود الإعلان (HTML / Script)</label>
+                <textarea id="adHtmlCode" rows="4" placeholder="ضع كود AdSense أو HTML هنا..." style="direction:ltr; font-family:monospace;"></textarea>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>مكان الظهور</label>
+                <select id="adPosition" onchange="toggleTimerInput()">
+                    <option value="popup">نافظة منبثقة (Popup)</option>
+                    <option value="top_bar">شريط علوي (Top Bar)</option>
+                    <option value="below_search">أسفل البحث (Below Search)</option>
+                    <option value="footer">أسفل الموقع (Footer)</option>
+                </select>
+            </div>
+            
+            <div class="form-group" id="timer-group">
+                <label>إغلاق تلقائي بعد (ثانية)</label>
+                <input type="number" id="adTimer" placeholder="0 = لا يغلق" value="0">
+            </div>
+
+            <div class="form-group">
+                <label>الحالة</label>
+                <select id="adStatus">
+                    <option value="true">تفعيل</option>
+                    <option value="false">إيقاف</option>
+                </select>
+            </div>
+        </div>
+    <button onclick="updateAds()" class="btn btn-save" style="width:100%; margin-top:15px;">
+            <i class="fas fa-rocket"></i> تحديث ونشر الإعدادات
+        </button>
+    </section>
+
+    <section id="p-appearance-pro" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #f1f5f9; padding-bottom:10px; margin-bottom:15px;">
+         <h3 style="margin:0; font-size:14px;"><i class="fas fa-palette"></i> تخصيص المظهر والهوية</h3>
+    </div>
+    
+    <h4 style="font-size:11px; color:var(--main-blue); margin-bottom:10px;">👤 هوية المطور واللوجو</h4>
+    <div class="form-grid">
+        <div class="form-group"><label>اسم المطور</label><input type="text" id="devName"></div>
+        <div class="form-group"><label>رقم واتساب المطور</label><input type="text" id="devPhone" placeholder="2012XXXXXXXX"></div>
+<div style="display:flex; gap:10px; margin-top:10px;">
+    <button onclick="saveDevInfoOnly()" class="btn" style="background-color: #075e54; flex:3;">
+        <i class="fab fa-whatsapp"></i> حفظ بيانات المطور فقط
+    </button>
+    </div>
+    <button onclick="resetToDefault('dev')" class="btn" style="background-color: #64748b; flex:1;" title="استعادة الافتراضي">
+        <i class="fas fa-undo-alt"></i>
+    </button>
+</div>
+<hr style="border:0; border-top:1px dashed #cbd5e1; margin:15px 0;">
+<h4 style="font-size:11px; color:var(--main-blue); margin-bottom:10px;">💫 حركة الشعار (اللوجو)</h4>
+ <div class="form-group full-width"><label>رابط اللوجو</label><input type="text" id="logoUrl"></div>
+    </div>
+<div class="form-grid">
+    <div class="form-group full-width">
+        <label>نوع الحركة</label>
+        <div style="display:flex; gap:10px;">
+            <select id="logoAnimType" style="flex:1;">
+                <option value="none">بدون حركة (ثابت)</option>
+                <option value="pulse">نبض (Pulse)</option>
+                <option value="float">عائم (Float)</option>
+                <option value="rotate">دوران (Rotate)</option>
+            </select>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+<button onclick="saveLogoData()" class="btn btn-update">حفظ اللوجو والحركة</button>
+    </div>
+    </div>
+    <button onclick="resetToDefault('logo')" class="btn" style="background-color: #64748b; flex:1;" title="استعادة الافتراضي">
+        <i class="fas fa-undo-alt"></i>
+    </button>
+</div>
+    <hr style="border:0; border-top:1px dashed #cbd5e1; margin:15px 0;">
+
+    <h4 style="font-size:11px; color:var(--warning); margin-bottom:10px;">🔍 ألوان زر البحث</h4>
+    <div class="form-grid">
+        <div class="form-group"><label>خلفية الزر</label><input type="color" id="searchBtnBg"></div>
+        <div class="form-group"><label>لون النص/الأيقونة</label><input type="color" id="searchBtnColor"></div>
+       <div style="display:flex; gap:10px; margin-top:10px;">
+    <button onclick="saveSearchBtnColorsOnly()" class="btn" style="background-color: var(--main-blue); flex:3;">
+        <i class="fas fa-paint-brush"></i> حفظ ألوان الزر 
+    </button>
+    </div>
+    <button onclick="resetToDefault('searchBtn')" class="btn" style="background-color: #64748b; flex:1;" title="استعادة الافتراضي">
+        <i class="fas fa-undo-alt"></i>
+    </button>
+</div>
+    <hr style="border:0; border-top:1px dashed #cbd5e1; margin:15px 0;">
+
+    <h4 style="font-size:11px; color:var(--success); margin-bottom:10px;">📝 الخطوط وألوان النصوص</h4>
+    <div class="form-grid">
+        <div class="form-group"><label>لون العناوين</label><input type="color" id="titleColor"></div>
+        <div class="form-group"><label>لون التفاصيل</label><input type="color" id="detailsColor"></div>
+        <div class="form-group">
+            <label>نوع الخط</label>
+            <select id="appFont">
+                <option value="'Cairo', sans-serif">Cairo (الافتراضي)</option>
+                <option value="'Almarai', sans-serif">Almarai</option>
+                <option value="'Tajawal', sans-serif">Tajawal</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>حركة الكروت</label>
+            <select id="cardAnim">
+                <option value="slideInUp">Slide Up</option>
+                <option value="zoomIn">Zoom In</option>
+            </select>
+        </div>
+    </div>
+<div style="display:flex; gap:10px; margin-top:15px;">
+    <button onclick="saveAppearanceData()" class="btn btn-update" style="flex:3;">
+        <i class="fas fa-save"></i> حفظ
+         (الخطوط والألوان)
+    </button>
+    
+    <button onclick="resetAppearanceToDefault()" class="btn" style="background-color: #64748b; flex:1;" title="استعادة الافتراضي">
+        <i class="fas fa-undo-alt"></i> استعادة
+    </button>
+</div>
+
+</section>
+
+    <section id="p-settings" class="panel">
+        <h3 style="margin:0 0 10px 0; font-size:14px;">🔧 إعدادات المصنع</h3>
+        
+        <p style="font-size:12px; color:#666; margin-bottom:15px;">استخدم هذه الخيارات لإعادة ضبط القالب إذا واجهت مشاكل في التصميم.</p>
+        
+        <div class="btn-group" style="flex-direction:column;">
+             <button class="btn btn-gray" onclick="resetAppearanceToDefault()">
+                <i class="fas fa-paint-brush"></i> استعادة ألوان ولوجو القالب الافتراضية
+            </button>
+            <button class="btn btn-red" onclick="resetAllConfig()">
+                <i class="fas fa-bomb"></i> استعادة جميع الإعدادات (المظهر والإشعارات)
+            </button>
+        </div>
+    </section>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.quilljs.com/1.3.6/quill.js">
+</script>
+<section id="p-maintenance" class="panel">
+    <h3 style="margin:0 0 5px 0; font-size:14px; border-bottom:1px solid #eee; padding-bottom:10px;">
+        ⛔ إعدادات وضع الصيانة
+    </h3>
+    </div>
+    <div class="form-group">
+        <label>حالة الموقع</label>
+        <select id="maintStatus" style="background:#fff3cd; border-color:#ffeeba;">
+            <option value="false">الموقع يعمل بشكل طبيعي ✅</option>
+            <option value="true">تفعيل وضع الصيانة (إغلاق الموقع) ⛔</option>
+        </select>
+    </div>
+    <div class="form-group full-width">
+        <label>رسالة الصيانة للزوار</label>
+        <textarea id="maintMsg" rows="3" placeholder="مثال: الموقع تحت الصيانة حالياً، سنعود قريباً..."></textarea>
+    </div>
+    <button onclick="updateMaintenance()" class="btn btn-red" style="width:100%; margin-top:15px;">
+        <i class="fas fa-check-circle"></i> حفظ إعدادات الصيانة
+    </button>
+</section>
+<section id="p-bundles" class="panel">
+        <h3 style="margin:0 0 15px 0; font-size:14px; border-bottom:1px solid #eee; padding-bottom:10px;">
+            🎁 إدارة أكواد باندل والعروض
+        </h3>
+        
+        <!-- النموذج اليدوي (كما هو) -->
+        <div class="form-grid">
+            <div class="form-group">
+                <label>اسم المنتج</label>
+                <input type="text" id="bundleName" placeholder="مثال: خصم ثلاجات شارب">
+            </div>
+            <div class="form-group">
+                <label>الكود (Code)</label>
+                <input type="text" id="bundleCode" placeholder="مثال: SHARP2026" style="font-family:monospace; color:var(--main-blue); font-weight:bold;">
+            </div>
+            <div class="form-group full-width">
+                <label>التفاصيل / ملاحظات</label>
+                <input type="text" id="bundleDesc" placeholder="مثال: ساري حتى نفاذ الكمية">
+            </div>
+        </div>
+
+        <div class="btn-group" style="margin-top:15px; border-top:none;">
+            <!-- زر النشر اليدوي -->
+            <button onclick="addBundle()" class="btn btn-save" style="flex:2;">
+                <i class="fas fa-plus-circle"></i> نشر يدوي
+            </button>
+            
+            <!-- زر رفع الإكسيل الجديد -->
+            <input type="file" id="excelUpload" accept=".xlsx, .xls, .csv" style="display:none" onchange="handleExcelUpload(this)">
+            <button onclick="document.getElementById('excelUpload').click()" class="btn" style="background:#217346; color:white; flex:2;">
+                <i class="fas fa-file-excel"></i> رفع شيت إكسيل
+            </button>
+            
+            <!-- زر تحميل النموذج -->
+            <button onclick="downloadTemplate()" class="btn btn-gray" title="تحميل نموذج فارغ" style="flex:1;">
+                <i class="fas fa-download"></i> نموذج
+            </button>
+        </div>
+        
+        <!-- شريط حالة الرفع -->
+        <div id="upload-status" style="margin-top:10px; font-size:12px; font-weight:bold; text-align:center; display:none;"></div>
+
+        <h4 style="margin-top:20px; font-size:12px; color:#666;">📋 الأكواد النشطة حالياً</h4>
+        <div id="bundles-list" style="margin-top:10px; display:grid; gap:10px;"></div>
+    </section>
+    <!-- قسم تقارير المبيعات -->
+    <section id="p-sales-report" class="panel">
+        <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">📊 تقارير المبيعات (الواردة من الفروع)</h3>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label>بحث باسم الفرع</label>
+                <input type="text" id="filter-branch" oninput="loadSalesReports()" placeholder="مثال: فرع القاهرة...">
+            </div>
+            <div class="form-group">
+                <label>إجمالي المبيعات</label>
+                <div id="total-sales-display" style="font-weight:bold; font-size:18px; color:var(--success); padding:5px;">0 ج.م</div>
+            </div>
+        </div>
+
+<div style="overflow-x:auto; margin-top:15px; border:1px solid #eee; border-radius:8px;">
+            <table style="width:100%; border-collapse: collapse; font-size:13px;">
+                <thead style="background:#1e293b; color:white;">
+                    <tr>
+                        <th style="padding:15px; width:25%;">اسم الفرع</th>
+                        <th style="padding:15px; width:55%;">تفاصيل المنتجات</th>
+                        <th style="padding:15px; width:20%;">إجمالي الفرع</th>
+                    </tr>
+                </thead>
+                <tbody id="sales-report-body">
+                    <tr><td colspan="3" style="text-align:center; padding:20px;">اضغط تحديث لجلب البيانات</td></tr>
+                </tbody>
+            </table>
+        </div>
+ <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="loadSalesReports()" class="btn btn-gray" style="flex:1;">
+                <i class="fas fa-sync"></i> تحديث البيانات
+            </button>
+            
+            <button onclick="downloadSalesReportExcel()" class="btn" style="background:#217346; color:white; flex:1;">
+                <i class="fas fa-file-excel"></i> تحميل تقرير إكسيل
+            </button>
+        </div>
+    </section>
+<section id="p-analytics" class="panel">
+    <h3 style="border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:20px;">
+        📈 لوحة تحليل البيانات (Analytics Dashboard)
+    </h3>
+    
+    <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
+        <button onclick="calculateAnalytics()" class="btn btn-save" style="width:auto;">
+            <i class="fas fa-sync"></i> تحديث التحليلات
+        </button>
+    </div>
+
+    <!-- شبكة الرسوم البيانية -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        
+        <!-- مبيعات الفروع -->
+        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="text-align:center; color:#1e293b; margin-bottom:15px;">🏆 الفروع الأكثر مبيعاً (بالقيمة)</h4>
+            <canvas id="branchChart"></canvas>
+        </div>
+
+        <!-- المنتجات الأكثر طلباً -->
+        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="text-align:center; color:#10b981; margin-bottom:15px;">🔥 أكثر 5 منتجات مبيعاً</h4>
+            <canvas id="topProductsChart"></canvas>
+        </div>
+
+        <!-- المنتجات الأقل طلباً -->
+        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="text-align:center; color:#ef4444; margin-bottom:15px;">💤 أقل 5 منتجات مبيعاً</h4>
+            <canvas id="lowProductsChart"></canvas>
+        </div>
+        
+         <!-- إحصائية سريعة -->
+        <div style="background:linear-gradient(135deg, #1a73e8, #0d47a1); color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+            <div style="font-size:40px;"><i class="fas fa-coins"></i></div>
+            <div style="font-size:14px; opacity:0.8;">إجمالي إيرادات النظام</div>
+            <div id="total-revenue-analytics" style="font-size:24px; font-weight:bold; margin-top:10px;">0 ج.م</div>
+        </div>
+
+    </div>
+</section>
+    <!-- قسم إدارة المستخدمين -->
+    <section id="p-users" class="panel">
+        <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">🛡️ إدارة صلاحيات المستخدمين</h3>
+        
+        <div class="form-group" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px dashed #cbd5e1;">
+            <label style="color:var(--main-blue);">إضافة / تعديل صلاحية مستخدم</label>
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <input type="email" id="u-email" placeholder="البريد الإلكتروني للمستخدم" style="flex:2;">
+                <select id="u-role" style="flex:1;">
+                    <option value="admin">مدير كامل (Admin)</option>
+                    <option value="editor">محرر (منتجات فقط)</option>
+                    <option value="viewer">مشاهد (تقارير فقط)</option>
+                </select>
+                <button onclick="saveUserRole()" class="btn btn-save" style="flex:1;">حفظ الصلاحية</button>
+            </div>
+            <p style="font-size:11px; color:#666; margin-top:5px;">* ملاحظة: يجب أن يقوم المستخدم بإنشاء حساب في Firebase Auth أولاً، هنا نحدد صلاحياته فقط.</p>
+        </div>
+
+        <h4 style="margin-top:20px;">المستخدمون المسجلون</h4>
+        <div id="users-list" style="margin-top:10px;"></div>
+    </section>
+    <!-- امان الحساب-->
+    <section id="p-security" class="panel">
+    <h3 style="margin:0 0 10px 0; font-size:14px; color:var(--main-blue)">🔐 أمان الحساب</h3>
+    
+    <div style="text-align:center; padding:30px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
+        <div style="font-size:40px; color:#10b981; margin-bottom:15px;">
+            <i class="fas fa-user-shield"></i>
+        </div>
+        <h3 style="color:#334155; margin:0;">أنت متصل حالياً</h3>
+        <p id="user-email-display" style="margin:10px 0 20px; color:#64748b; font-weight:bold; font-family:monospace; font-size:14px;"></p>
+        
+        <button onclick="handleLogout()" class="btn btn-red" style="margin: 0 auto; width: 200px;">
+            <i class="fas fa-sign-out-alt"></i> تسجيل الخروج
+        </button>
+        
+        <p style="margin-top:20px; font-size:11px; color:#94a3b8;">
+            عند تسجيل الخروج، ستظهر نافذة الدخول مرة أخرى ولن يتمكن أحد من الوصول للوحة التحكم.
+        </p>
+    </div>
+</section>
+<script>
+  
+// متغير لتخزين الإعدادات السابقة للتراجع
+let previousConfigBackup = null;
+let currentServerConfig = {};
+    // ⚠️ استبدل البيانات التالية ببيانات مشروعك
+    const firebaseConfig = {
+  apiKey: "AIzaSyAsjxa0sr72e2PaEMOU9aVapNaCKcD6hUE",
+  authDomain: "elaraby-products.firebaseapp.com",
+  databaseURL: "https://elaraby-products-default-rtdb.firebaseio.com",
+  projectId: "elaraby-products",
+  storageBucket: "elaraby-products.firebasestorage.app",
+  messagingSenderId: "257061984766",
+  appId: "1:257061984766:web:211e2ee759d2957ec248af",
+  measurementId: "G-WLLL38KSVT"
+};
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline'], [{ 'color': [] }], ['clean']] } });
+
+    let localProducts = [];
+    let currentColors = [];
+    let previousConfig = null; // متغير لحفظ الحالة السابقة (للتراجع)
+
+    // جلب البيانات
+    db.collection("products").onSnapshot(snap => {
+        localProducts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateDashboardStats();
+    });
+
+    db.collection("app_config").doc("ultimate_v5").onSnapshot(doc => {
+    if(doc.exists) {
+        currentServerConfig = doc.data(); // تحديث النسخة المحلية للمقارنة
+        // إذا كان المستخدم لا يكتب حالياً، نحدث الحقول
+        if(document.activeElement.tagName !== "INPUT") {
+             fillConfigForm(currentServerConfig);
+        }
+    }
+});
+    
+    // 1. التحكم في ظهور الحقول حسب الاختيار
+    function toggleAdInputs() {
+        const type = document.getElementById('adSourceType').value;
+        document.getElementById('input-image-group').style.display = (type === 'image') ? 'block' : 'none';
+        document.getElementById('input-code-group').style.display = (type === 'code') ? 'block' : 'none';
+    }
+
+    function toggleTimerInput() {
+        const pos = document.getElementById('adPosition').value;
+        const timerGroup = document.getElementById('timer-group');
+        // إظهار المؤقت فقط إذا كان النوع Popup
+        if(pos === 'popup') {
+            timerGroup.style.opacity = '1'; 
+            timerGroup.style.pointerEvents = 'auto';
+        } else {
+            timerGroup.style.opacity = '0.3'; 
+            timerGroup.style.pointerEvents = 'none';
+        }
+    }
+
+    // 2. جلب البيانات عند التحميل
+    db.collection("app_config").doc("ads").onSnapshot(doc => {
+        if(doc.exists){
+            const d = doc.data();
+            // تعبئة الحقول
+            document.getElementById('adSourceType').value = d.sourceType || 'image';
+            document.getElementById('adImg').value = d.img || "";
+            document.getElementById('adLink').value = d.link || "";
+            document.getElementById('adHtmlCode').value = d.htmlCode || "";
+            document.getElementById('adPosition').value = d.position || "popup";
+            document.getElementById('adTimer').value = d.timer || 0;
+            document.getElementById('adStatus').value = String(d.active);
+            
+            // تحديث الواجهة
+            toggleAdInputs();
+            toggleTimerInput();
+        }
+    });
+
+    // 3. دالة الحفظ المحدثة
+    async function updateAds() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        
+        const data = {
+            sourceType: document.getElementById('adSourceType').value,
+            img: document.getElementById('adImg').value,
+            link: document.getElementById('adLink').value,
+            htmlCode: document.getElementById('adHtmlCode').value,
+            position: document.getElementById('adPosition').value,
+            timer: parseInt(document.getElementById('adTimer').value) || 0,
+            active: document.getElementById('adStatus').value === "true",
+            updatedAt: Date.now()
+        };
+        
+        try {
+            await db.collection("app_config").doc("ads").set(data);
+            alert("✅ تم تحديث الإعلان بنجاح");
+        } catch(e) {
+            alert("❌ خطأ: " + e.message);
+        }
+    }
+
+    // --- وظائف المنتجات ---
+    function liveSearch(val) {
+        const sugBox = document.getElementById("suggestions");
+        const mBtn = document.getElementById("mainBtn");
+        sugBox.innerHTML = "";
+        if(!val) { sugBox.style.display = "none"; return; }
+        
+        const matches = localProducts.filter(p => p.id.toLowerCase().includes(val.toLowerCase()));
+        if(matches.length) {
+            sugBox.style.display = "block";
+            matches.forEach(p => {
+                const div = document.createElement("div");
+                div.className = "sug-item";
+                div.innerHTML = `<strong>${p.id}</strong> <span>${p.name || ''}</span>`;
+                div.onclick = () => fillForm(p);
+                sugBox.appendChild(div);
+            });
+        }
+        
+        const exist = localProducts.find(p => p.id.toLowerCase() === val.trim().toLowerCase());
+        mBtn.innerHTML = exist ? '<i class="fas fa-sync"></i> تحديث المنتج' : '<i class="fas fa-plus"></i> حفظ جديد';
+        mBtn.className = exist ? "btn btn-update" : "btn btn-save";
+    }
+
+    function fillForm(p) {
+        document.getElementById("productId").value = p.id;
+        document.getElementById("name").value = p.name || "";
+        document.getElementById("price").value = p.price || "";
+        document.getElementById("p-category").value = p.category || "";
+        quill.root.innerHTML = p.details || "";
+        document.getElementById("images").value = (p.images || []).join(",");
+        document.getElementById("video").value = p.video || "";
+        currentColors = p.colors || [];
+        syncPreviews(); syncVideo(); syncColors();
+        document.getElementById("suggestions").style.display = "none";
+        document.getElementById("mainBtn").innerHTML = '<i class="fas fa-sync"></i> تحديث المنتج';
+        document.getElementById("mainBtn").className = "btn btn-update";
+    }
+
+    function clearForm() {
+        document.getElementById("productId").value = "";
+        document.getElementById("name").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("p-category").value = "";
+        quill.root.innerHTML = "";
+        document.getElementById("images").value = "";
+        document.getElementById("video").value = "";
+        currentColors = [];
+        syncPreviews(); syncVideo(); syncColors();
+        document.getElementById("mainBtn").innerHTML = '<i class="fas fa-plus"></i> حفظ جديد';
+        document.getElementById("mainBtn").className = "btn btn-save";
+    }
+
+    function syncPreviews() {
+        const box = document.getElementById("imagePreview");
+        box.innerHTML = "";
+        const urls = document.getElementById("images").value.split(",");
+        urls.forEach((url, i) => {
+            if(url.trim()) {
+                box.innerHTML += `<div class="preview-card" style="width:60px; height:60px; display:inline-block; margin:2px;"><img src="${url.trim()}"><button class="remove-badge" onclick="popImg(${i})">×</button></div>`;
+            }
+        });
+    }
+    function popImg(i) { let arr = document.getElementById("images").value.split(","); arr.splice(i, 1); document.getElementById("images").value = arr.join(","); syncPreviews(); }
+
+    function syncVideo() {
+        const v = document.getElementById("video").value.trim();
+        const box = document.getElementById("videoPreview");
+        box.innerHTML = "";
+        if(!v) return;
+        if(v.includes("youtube.com") || v.includes("youtu.be")) {
+            let id = v.includes("v=") ? v.split("v=")[1].split("&")[0] : v.split("/").pop();
+            box.innerHTML = `<div class="preview-card" style="width:100%"><iframe width="100%" height="150" src="https://www.youtube.com/embed/${id}" frameborder="0" allowfullscreen></iframe></div>`;
+        } else { box.innerHTML = `<div class="preview-card" style="width:100%"><video width="100%" height="150" controls src="${v}"></video></div>`; }
+    }
+    
+    function addColorItem() {
+        const n = document.getElementById("cName").value, c = document.getElementById("cCode").value, i = document.getElementById("cImg").value;
+        if(!n) return alert("ادخل اسم اللون");
+        currentColors.push({ name: n, code: c, image: i }); syncColors();
+        document.getElementById("cName").value = ''; document.getElementById("cImg").value = '';
+    }
+    function syncColors() {
+        const box = document.getElementById("colorsPreview"); box.innerHTML = "";
+        currentColors.forEach((item, i) => {
+            box.innerHTML += `<div class="color-item-card"><div class="color-preview-dot" style="background:${item.code}"></div><span>${item.name}</span><button class="remove-badge" onclick="removeColor(${i})" style="position:static; margin-right:5px;">×</button></div>`;
+        });
+    }
+    function removeColor(index) { currentColors.splice(index, 1); syncColors(); }
+
+async function commitProduct() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول للحفظ");
+        const id = document.getElementById("productId").value.trim();
+        if(!id) return alert("ادخل الكود");
+
+        // تنظيف الاسم (نص فقط)
+        const rawName = document.getElementById("name").value;
+        const cleanName = DOMPurify.sanitize(rawName, {ALLOWED_TAGS: []});
+
+        // تنظيف التفاصيل (HTML آمن) - يأتي من محرر Quill
+        const rawDetails = quill.root.innerHTML;
+        const cleanDetails = DOMPurify.sanitize(rawDetails);
+
+        const data = {
+            name: cleanName,
+            price: document.getElementById("price").value,
+            category: document.getElementById("p-category").value || "عام",
+            details: cleanDetails, // استخدام النسخة النظيفة
+            images: document.getElementById("images").value.split(",").map(s => s.trim()).filter(s => s),
+            video: document.getElementById("video").value,
+            colors: currentColors,
+            updatedAt: Date.now()
+        };
+        
+        // ... تكملة الدالة كما هي (batch.set أو db.collection...)
+        try {
+            await db.collection("products").doc(id).set(data, {merge:true});
+            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+            alert("✅ تم الحفظ");
+        } catch(e) { alert("❌ خطأ: " + e.message); }
+    }
+    
+    async function removeProduct() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول للحذف");
+        const id = document.getElementById("productId").value.trim();
+        if(id && confirm("حذف المنتج؟")) {
+            await db.collection("products").doc(id).delete();
+            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+            alert("تم الحذف"); clearForm();
+        }
+    }
+
+   // 1. التحكم في ظهور الحقول حسب الاختيار
+    function toggleAdInputs() {
+        const type = document.getElementById('adSourceType').value;
+        document.getElementById('input-image-group').style.display = (type === 'image') ? 'block' : 'none';
+        document.getElementById('input-code-group').style.display = (type === 'code') ? 'block' : 'none';
+    }
+
+    function toggleTimerInput() {
+        const pos = document.getElementById('adPosition').value;
+        const timerGroup = document.getElementById('timer-group');
+        // إظهار المؤقت فقط إذا كان النوع Popup
+        if(pos === 'popup') {
+            timerGroup.style.opacity = '1'; 
+            timerGroup.style.pointerEvents = 'auto';
+        } else {
+            timerGroup.style.opacity = '0.3'; 
+            timerGroup.style.pointerEvents = 'none';
+        }
+    }
+
+    // 2. جلب البيانات عند التحميل
+    db.collection("app_config").doc("ads").onSnapshot(doc => {
+        if(doc.exists){
+            const d = doc.data();
+            // تعبئة الحقول
+            document.getElementById('adSourceType').value = d.sourceType || 'image';
+            document.getElementById('adImg').value = d.img || "";
+            document.getElementById('adLink').value = d.link || "";
+            document.getElementById('adHtmlCode').value = d.htmlCode || "";
+            document.getElementById('adPosition').value = d.position || "popup";
+            document.getElementById('adTimer').value = d.timer || 0;
+            document.getElementById('adStatus').value = String(d.active);
+            
+            // تحديث الواجهة
+            toggleAdInputs();
+            toggleTimerInput();
+        }
+    });
+
+    // 3. دالة الحفظ المحدثة
+    async function updateAds() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        
+        const data = {
+            sourceType: document.getElementById('adSourceType').value,
+            img: document.getElementById('adImg').value,
+            link: document.getElementById('adLink').value,
+            htmlCode: document.getElementById('adHtmlCode').value,
+            position: document.getElementById('adPosition').value,
+            timer: parseInt(document.getElementById('adTimer').value) || 0,
+            active: document.getElementById('adStatus').value === "true",
+            updatedAt: Date.now()
+        };
+        
+        try {
+            await db.collection("app_config").doc("ads").set(data);
+            alert("✅ تم تحديث الإعلان بنجاح");
+        } catch(e) {
+            alert("❌ خطأ: " + e.message);
+        }
+    }
+    // --- وظائف المظهر والإعدادات ---
+    // دالة حفظ إعدادات المظهر المحددة فقط
+async function saveAppearanceData() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+
+    const updates = {
+        appFont: document.getElementById('appFont').value,
+        detailsColor: document.getElementById('detailsColor').value,
+        titleColor: document.getElementById('titleColor').value,
+        cardAnim: document.getElementById('cardAnim').value,
+        logoEffect: document.getElementById('logoAnimType').value, // إضافة الحركة هنا أيضاً كما طلبت
+        updatedAt: Date.now()
+    };
+
+    // تجهيز بيانات التراجع (القيم القديمة)
+    previousConfigBackup = {
+        appFont: currentServerConfig.appFont || "Cairo",
+        detailsColor: currentServerConfig.detailsColor || "#64748b",
+        titleColor: currentServerConfig.titleColor || "#334155",
+        cardAnim: currentServerConfig.cardAnim || "fadeInUp",
+        logoEffect: currentServerConfig.logoEffect || "none"
+    };
+
+    try {
+        await db.collection("app_config").doc("ultimate_v5").set(updates, { merge: true });
+        alert("✨ تم حفظ (الخطوط، الألوان، والحركة) بنجاح.");
+    } catch(e) { alert("❌ خطأ: " + e.message); }
+}
+
+
+async function undoLastChange() {
+    if (!previousConfigBackup || Object.keys(previousConfigBackup).length === 0) {
+        return alert("⚠️ لا توجد تعديلات أخيرة للتراجع عنها.");
+    }
+
+    if (!confirm("هل تريد التراجع عن آخر عملية حفظ؟")) return;
+
+    try {
+        // إرجاع القيم القديمة فقط
+        await db.collection("app_config").doc("ultimate_v5").set(previousConfigBackup, { merge: true });
+        
+        // تحديث الواجهة فوراً بالقيم التي تم استرجاعها
+        for (let key in previousConfigBackup) {
+            const el = document.getElementById(key === 'logoEffect' ? 'logoAnimType' : key);
+            if (el) el.value = previousConfigBackup[key];
+        }
+
+        alert("↩️ تم التراجع بنجاح!");
+        previousConfigBackup = null; 
+    } catch (e) { alert("❌ خطأ أثناء التراجع: " + e.message); }
+}
+
+    async function resetAppearanceToDefault() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        if(!confirm("سيتم إعادة الألوان واللوجو للافتراضي. هل أنت متأكد؟")) return;
+        
+        const defaults = {
+            logoUrl: "https://i.top4top.io/p_3662hu6pn1.png",
+            titleColor: "#1a73e8",
+            cardAnim: "slideInUp",
+            fontType: "'Cairo', sans-serif"
+        };
+        // نقوم بدمج القيم الافتراضية مع الحفاظ على باقي البيانات
+        await db.collection("app_config").doc("ultimate_v5").set(defaults, { merge: true });
+        // تحديث الواجهة
+        document.getElementById('logoUrl').value = defaults.logoUrl;
+        document.getElementById('titleColor').value = defaults.titleColor;
+        document.getElementById('cardAnim').value = defaults.cardAnim;
+        alert("✅ تم استعادة المظهر الافتراضي");
+    }
+
+    async function resetAllConfig() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        const code = prompt("للمتابعة، اكتب 'RESET' في الخانة أدناه:");
+        if(code !== "RESET") return;
+
+        // إعادة كل شيء
+        const fullDefaults = {
+            logoUrl: "https://i.top4top.io/p_3662hu6pn1.png",
+            titleColor: "#1a73e8",
+            devName: "Abd elmoneim",
+            cardAnim: "slideInUp",
+            animSpeed: "0.5"
+        };
+        await db.collection("app_config").doc("ultimate_v5").set(fullDefaults);
+        // تعطيل الإعلانات والإشعارات
+        await db.collection("app_config").doc("ads").set({active: false});
+        await db.collection("app_config").doc("notifications").set({active: false});
+        
+        alert("☢️ تم عمل ضبط مصنع كامل للإعدادات");
+        location.reload();
+    }
+// --- وظائف الحماية ---// --- منطق تسجيل الدخول والحماية الجديد ---
+
+    // 1. مراقبة حالة المستخدم (Gatekeeper)
+    auth.onAuthStateChanged(user => {
+        const overlay = document.getElementById('login-overlay');
+        const emailDisplay = document.getElementById('user-email-display');
+        
+        if(user) {
+            // حالة: مسجل الدخول
+            overlay.style.display = 'none'; // إخفاء نافذة الدخول
+            if(emailDisplay) emailDisplay.innerText = user.email;
+            
+            // تحميل البيانات فقط بعد التأكد من الدخول
+            // (هذا يمنع ظهور البيانات في الخلفية قبل الدخول)
+             updateDashboardStats(); 
+        } else {
+            // حالة: غير مسجل
+            overlay.style.display = 'flex'; // إظهار نافذة الدخول
+        }
+    });
+
+    // 2. دالة تسجيل الدخول من النافذة المنبثقة
+    async function handlePopupLogin() {
+        const email = document.getElementById('popup-email').value;
+        const pass = document.getElementById('popup-pass').value;
+        const msg = document.getElementById('popup-msg');
+        const btn = document.querySelector('#login-overlay .btn');
+
+        if(!email || !pass) {
+            msg.innerText = "⚠️ يرجى ملء جميع الحقول";
+            msg.style.color = "#f59e0b";
+            return;
+        }
+
+        // تغيير نص الزر أثناء التحميل
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحقق...';
+        btn.disabled = true;
+
+        try {
+            // Firebase يحفظ الجلسة تلقائياً (Persistence: Local)
+            await auth.signInWithEmailAndPassword(email, pass);
+            msg.innerText = "✅ تم الدخول بنجاح";
+            msg.style.color = "#10b981";
+            // ستختفي النافذة تلقائياً بسبب auth.onAuthStateChanged
+        } catch(e) {
+            console.error(e);
+            let errorText = "خطأ في البيانات";
+            if(e.code === 'auth/wrong-password') errorText = "كلمة المرور غير صحيحة";
+            if(e.code === 'auth/user-not-found') errorText = "البريد غير مسجل";
+            
+            msg.innerText = "❌ " + errorText;
+            msg.style.color = "#ef4444";
+            
+            // إعادة الزر لحالته
+            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> دخول آمن';
+            btn.disabled = false;
+        }
+    }
+
+    // 3. دالة تسجيل الخروج
+    async function handleLogout() {
+        if(confirm("هل أنت متأكد من تسجيل الخروج؟")) {
+            try {
+                await auth.signOut();
+                // سيتم إظهار النافذة تلقائياً
+                location.reload(); // إعادة تحميل الصفحة لتنظيف الذاكرة
+            } catch(e) {
+                alert("حدث خطأ أثناء الخروج");
+            }
+        }
+    }
+    
+    // دعم ضغط زر Enter في حقول تسجيل الدخول
+    document.getElementById('popup-pass').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') handlePopupLogin();
+    });
+
+    function updateDashboardStats() {
+        document.getElementById('count-total').innerText = localProducts.length;
+        const cats = [...new Set(localProducts.map(p => p.category))];
+        document.getElementById('count-cats').innerText = cats.length;
+        document.getElementById('count-no-img').innerText = localProducts.filter(p => !p.images || p.images.length === 0).length;
+    }
+
+    function showPanel(id, btn) {
+        document.querySelectorAll('.panel, .nav-link').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active'); btn.classList.add('active');
+    }
+	// دالة لتصفية وعرض المنتجات التي لا تحتوي على صور
+function filterNoImageProducts() {
+    const sugBox = document.getElementById("suggestions");
+    const productIdInput = document.getElementById("productId");
+    
+    // 1. تصفية المنتجات التي مصفوفة صورها فارغة أو غير موجودة
+    const missingImages = localProducts.filter(p => !p.images || p.images.length === 0 || (p.images.length === 1 && p.images[0] === ""));
+
+    if (missingImages.length === 0) {
+        alert("🎉 كل المنتجات تحتوي على صور حالياً!");
+        return;
+    }
+
+    // 2. إظهار لوحة المنتجات إذا كانت مخفية
+    showPanel('p-products', document.querySelector('[onclick*="p-products"]'));
+
+    // 3. مسح وتجهيز صندوق الاقتراحات لعرض النتائج
+    sugBox.innerHTML = `<div style="padding:10px; background:#fffbeb; font-weight:bold; border-bottom:1px solid #f59e0b; font-size:11px; color:#b45309;">⚠️ تم العثور على (${missingImages.length}) منتج بدون صور:</div>`;
+    sugBox.style.display = "block";
+
+    // 4. عرض المنتجات في القائمة
+    missingImages.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "sug-item";
+        div.innerHTML = `<strong>${p.id}</strong> <span>${p.name || 'بدون اسم'}</span> <i class="fas fa-edit" style="color:#64748b"></i>`;
+        div.onclick = () => {
+            fillForm(p);
+            sugBox.style.display = "none";
+        };
+        sugBox.appendChild(div);
+    });
+
+    // 5. التنبيه البصري للمستخدم
+    productIdInput.placeholder = "تصفية: بدون صور...";
+    productIdInput.focus();
+}
+// --- 1. دالة حفظ صورة وحركة اللوجو فقط ---
+// دالة حفظ اللوجو (الرابط + الحركة)
+async function saveLogoData() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+
+    const updates = {
+        logoUrl: document.getElementById('logoUrl').value,
+        logoEffect: document.getElementById('logoAnimType').value,
+        updatedAt: Date.now()
+    };
+
+    // تجهيز بيانات التراجع قبل الحفظ
+    previousConfigBackup = {
+        logoUrl: currentServerConfig.logoUrl || "",
+        logoEffect: currentServerConfig.logoEffect || "none"
+    };
+
+    try {
+        await db.collection("app_config").doc("ultimate_v5").set(updates, { merge: true });
+        alert("✅ تم حفظ رابط اللوجو ونوع الحركة بنجاح.");
+    } catch(e) { alert("❌ خطأ: " + e.message); }
+}
+
+// --- 2. دوال وضع الصيانة ---
+// جلب حالة الصيانة عند التحميل
+db.collection("app_config").doc("maintenance_mode").onSnapshot(doc => {
+    if(doc.exists) {
+        const d = doc.data();
+        document.getElementById('maintStatus').value = d.isActive ? "true" : "false";
+        document.getElementById('maintMsg').value = d.message || "";
+    }
+});
+
+// حفظ حالة الصيانة
+async function updateMaintenance() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+    
+    const isActive = document.getElementById('maintStatus').value === "true";
+    const message = document.getElementById('maintMsg').value;
+    
+    try {
+        await db.collection("app_config").doc("maintenance_mode").set({
+            isActive: isActive,
+            message: message,
+            updatedAt: Date.now()
+        });
+        
+        alert(isActive ? "⛔ تم تفعيل وضع الصيانة" : "✅ تم فتح الموقع للزوار");
+    } catch(e) {
+        alert("❌ خطأ: " + e.message);
+    }
+}
+// دالة حفظ اسم المطور ورقم الواتساب فقط
+async function saveDevInfoOnly() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول أولاً");
+
+    // جلب القيم من الحقول
+    const name = document.getElementById('devName').value;
+    const phone = document.getElementById('devPhone').value;
+
+    // تجهيز البيانات المراد تحديثها فقط
+    const devData = {
+        devName: name,
+        devPhone: phone,
+        updatedAt: Date.now() // لتسجيل وقت التحديث
+    };
+
+    try {
+        // استخدام merge: true لضمان عدم مسح الألوان أو اللوجو أو أي إعدادات أخرى
+        await db.collection("app_config").doc("ultimate_v5").set(devData, { merge: true });
+        
+        // تحديث نسخة التراجع لتعود للقيم القديمة لهذا الحقلين فقط إذا لزم الأمر
+        previousConfigBackup = {
+            devName: currentServerConfig.devName || "",
+            devPhone: currentServerConfig.devPhone || ""
+        };
+
+        alert("✅ تم تحديث بيانات المطور (الاسم والرقم) بنجاح!");
+    } catch (e) {
+        console.error("Error saving dev info:", e);
+        alert("❌ حدث خطأ أثناء الحفظ: " + e.message);
+    }
+}
+// دالة حفظ ألوان زر البحث فقط
+async function saveSearchBtnColorsOnly() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول أولاً");
+
+    // جلب القيم الحالية من الواجهة
+    const btnBg = document.getElementById('searchBtnBg').value;
+    const btnColor = document.getElementById('searchBtnColor').value;
+
+    // تجهيز كائن التحديث للحقول المعنية فقط
+    const colorData = {
+        searchBtnBg: btnBg,
+        searchBtnColor: btnColor,
+        updatedAt: Date.now()
+    };
+
+    try {
+        // الحفظ في قاعدة البيانات مع خاصية الدمج
+        await db.collection("app_config").doc("ultimate_v5").set(colorData, { merge: true });
+        
+        // تحديث ذاكرة التراجع لهذه الحقول فقط
+        previousConfigBackup = {
+            searchBtnBg: currentServerConfig.searchBtnBg || "#1a73e8",
+            searchBtnColor: currentServerConfig.searchBtnColor || "#ffffff"
+        };
+
+        alert("🎨 تم تحديث ألوان زر البحث بنجاح!");
+    } catch (e) {
+        console.error("Error saving search button colors:", e);
+        alert("❌ حدث خطأ أثناء الحفظ: " + e.message);
+    }
+}
+// دالة استعادة القيم الافتراضية لكل قسم
+async function resetToDefault(type) {
+    if(!confirm("هل أنت متأكد من استعادة الإعدادات الافتراضية لهذا القسم؟")) return;
+
+    let defaults = {};
+    
+    // تعريف القيم الافتراضية لكل نوع
+    switch(type) {
+        case 'dev':
+            defaults = {
+                devName: "اسم المطور الافتراضي",
+                devPhone: "201000000000"
+            };
+            break;
+        case 'searchBtn':
+            defaults = {
+                searchBtnBg: "#1a73e8", // الأزرق الافتراضي
+                searchBtnColor: "#ffffff" // الأبيض الافتراضي
+            };
+            break;
+        case 'logo':
+            defaults = {
+                logoEffect: "none" // بدون حركة
+            };
+            break;
+        case 'appearance': // للمظهر العام إذا أردت
+            defaults = {
+                titleColor: "#334155",
+                detailsColor: "#64748b",
+                appFont: "Cairo",
+                cardAnim: "fadeInUp"
+            };
+            break;
+    }
+
+    try {
+        // 1. تحديث قاعدة البيانات بالقيم الافتراضية
+        await db.collection("app_config").doc("ultimate_v5").set(defaults, { merge: true });
+        
+        // 2. تحديث الحقول في الواجهة أمامك مباشرة
+        for (let key in defaults) {
+            const input = document.getElementById(key === 'logoEffect' ? 'logoAnimType' : key);
+            if (input) input.value = defaults[key];
+        }
+
+        alert("⏪ تم استعادة الإعدادات الافتراضية وحفظها بنجاح.");
+    } catch (e) {
+        alert("❌ فشل الاستعادة: " + e.message);
+    }
+}
+// دالة مخصصة لاستعادة إعدادات المظهر والخطوط والحركة للقيم الأصلية
+async function resetAppearanceToDefault() {
+    if(!confirm("هل أنت متأكد من إعادة الألوان والخطوط والحركة للوضع الافتراضي؟")) return;
+
+    // 1. تعريف القيم الافتراضية الأصلية للقالب
+    const appearanceDefaults = {
+        appFont: "Cairo",           // الخط الافتراضي
+        titleColor: "#334155",      // لون العناوين (رمادي غامق)
+        detailsColor: "#64748b",    // لون التفاصيل (رمادي فاتح)
+        cardAnim: "fadeInUp",       // حركة الكروت
+        logoEffect: "none"          // حركة اللوجو
+    };
+
+    try {
+        // 2. تحديث قاعدة البيانات فوراً (استخدام merge لعدم مسح بيانات المطور أو الصيانة)
+        await db.collection("app_config").doc("ultimate_v5").set(appearanceDefaults, { merge: true });
+
+        // 3. تحديث العناصر في واجهة لوحة التحكم أمامك
+        document.getElementById('appFont').value = appearanceDefaults.appFont;
+        document.getElementById('titleColor').value = appearanceDefaults.titleColor;
+        document.getElementById('detailsColor').value = appearanceDefaults.detailsColor;
+        document.getElementById('cardAnim').value = appearanceDefaults.cardAnim;
+        document.getElementById('logoAnimType').value = appearanceDefaults.logoEffect; // تأكد أن ID قائمة الحركة هو logoAnimType
+
+        alert("⏪ تم استعادة الألوان والخطوط والحركة للقيم الافتراضية بنجاح.");
+    } catch (e) {
+        console.error("Reset Error:", e);
+        alert("❌ حدث خطأ أثناء الاستعادة: " + e.message);
+    }
+}
+// --- وظائف أكواد باندل ---
+    // 1. جلب الأكواد وعرضها
+    db.collection("bundle_codes").orderBy("createdAt", "desc").onSnapshot(snap => {
+        const list = document.getElementById("bundles-list");
+        if(list) {
+            list.innerHTML = "";
+            snap.forEach(doc => {
+                const d = doc.data();
+                list.innerHTML += `
+                <div style="background:white; padding:10px; border-radius:8px; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:bold; color:#1e293b;">${d.name}</div>
+                        <div style="font-size:11px; color:#64748b;">${d.desc}</div>
+                        <div style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:4px; display:inline-block; margin-top:4px; font-family:monospace; font-weight:bold;">${d.code}</div>
+                    </div>
+                    <button onclick="deleteBundle('${doc.id}')" class="btn btn-red" style="width:auto; padding:5px 10px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>`;
+            });
+        }
+    });
+
+    // 2. إضافة كود جديد
+    async function addBundle() {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        const name = document.getElementById('bundleName').value;
+        const code = document.getElementById('bundleCode').value;
+        const desc = document.getElementById('bundleDesc').value;
+
+        if(!name || !code) return alert("يرجى كتابة الاسم والكود");
+
+        try {
+            await db.collection("bundle_codes").add({
+                name, code, desc, createdAt: Date.now()
+            });
+            document.getElementById('bundleName').value = "";
+            document.getElementById('bundleCode').value = "";
+            document.getElementById('bundleDesc').value = "";
+            alert("✅ تم نشر الكود");
+        } catch(e) { alert("Error: " + e.message); }
+    }
+
+    // 3. حذف كود
+    async function deleteBundle(id) {
+        if(confirm("حذف هذا العرض؟")) {
+            await db.collection("bundle_codes").doc(id).delete();
+        }
+    }
+    // --- دوال التعامل مع الإكسيل (Excel Handler) ---
+
+    // 1. تحميل نموذج فارغ للمستخدم ليعرف التنسيق
+    function downloadTemplate() {
+        const wb = XLSX.utils.book_new();
+        // الأعمدة المطلوبة
+        const ws_data = [
+            ["name", "code", "desc"], 
+            ["عرض ثلاجة شارب", "SHARP10", "خصم 10% لفترة محدودة"],
+            ["غسالة تورنيدو", "TOR2026", "شحن مجاني"]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, "Bundles");
+        XLSX.writeFile(wb, "Bundle_Template.xlsx");
+    }
+// --- دوال التعامل مع الإكسيل (النسخة المطور والمصححة) ---
+
+    // 1. تحميل نموذج فارغ
+    function downloadTemplate() {
+        const wb = XLSX.utils.book_new();
+        const ws_data = [
+            ["name", "code", "desc"], 
+            ["عرض ثلاجة شارب", "SHARP10", "خصم 10%"],
+            ["غسالة تورنيدو", "TOR2026", "شحن مجاني"]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, "Bundle_Template.xlsx");
+    }
+
+    // 2. معالجة الملف المرفوع (تم التعديل للبحث في كل الأوراق)
+    function handleExcelUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = 'orange';
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تحليل الملف...';
+
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                
+                let foundData = [];
+                
+                // البحث في جميع أوراق العمل (Sheets) وليس الأولى فقط
+                for (let i = 0; i < workbook.SheetNames.length; i++) {
+                    const sheetName = workbook.SheetNames[i];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, {defval: ""}); // قراءة كل شيء
+                    
+                    if (json.length > 0) {
+                        foundData = json;
+                        console.log(`تم العثور على بيانات في الورقة: ${sheetName}`);
+                        break; // توقف عند العثور على بيانات
+                    }
+                }
+
+                if (foundData.length === 0) {
+                    alert("⚠️ الملف يبدو فارغاً تماماً! تأكد من حفظ الملف قبل الرفع.");
+                    statusDiv.style.display = 'none';
+                    return;
+                }
+
+                // طباعة البيانات في الكونسول للمراجعة (اضغط F12 لرؤيتها)
+                console.log("البيانات المقروءة:", foundData);
+
+                // البدء في الرفع
+                uploadBulkBundles(foundData);
+
+            } catch (err) {
+                console.error(err);
+                alert("❌ حدث خطأ غير متوقع أثناء القراءة: " + err.message);
+                statusDiv.style.display = 'none';
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+        input.value = "";
+    }
+
+    // 3. رفع البيانات (تم التعديل لتجاهل حالة الأحرف والمسافات)
+    async function uploadBulkBundles(data) {
+        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+        
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.innerHTML = `جاري معالجة ${data.length} صف...`;
+
+        const batch = db.batch();
+        let count = 0;
+
+        // دالة مساعدة لتنظيف المفاتيح (تحويل لصغير وإزالة مسافات)
+        function normalizeKeys(obj) {
+            const newObj = {};
+            Object.keys(obj).forEach(key => {
+                const cleanKey = key.toString().trim().toLowerCase();
+                newObj[cleanKey] = obj[key];
+            });
+            return newObj;
+        }
+
+        data.forEach((rawItem) => {
+            // تنظيف الصف الحالي
+            const item = normalizeKeys(rawItem);
+
+            // البحث عن البيانات بمرونة عالية
+            // يدعم: name, Name, NAME, الاسم, اسم العرض
+            const name = item['name'] || item['الاسم'] || item['اسم العرض'] || item['product'] || item['offer'];
+            // يدعم: code, Code, CODE, الكود, كود
+            const code = item['code'] || item['الكود'] || item['كود'];
+            // يدعم: desc, description, details, التفاصيل, ملاحظات
+            const desc = item['desc'] || item['description'] || item['details'] || item['التفاصيل'] || item['ملاحظات'] || "";
+
+            if (name && code) {
+                const docRef = db.collection("bundle_codes").doc(); 
+                batch.set(docRef, {
+                    name: String(name).trim(),
+                    code: String(code).trim(),
+                    desc: String(desc).trim(),
+                    createdAt: Date.now()
+                });
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            alert("⚠️ لم يتم العثور على أعمدة (Name, Code) بشكل صحيح.\n\nتأكد أن أسماء الأعمدة في أول صف بالملف هي:\nname , code");
+            statusDiv.style.display = 'none';
+            return;
+        }
+
+        try {
+            await batch.commit();
+            statusDiv.style.color = 'green';
+            statusDiv.innerHTML = `✅ تم رفع ${count} كود بنجاح!`;
+            // تحديث القائمة تلقائياً (إذا كانت دالة الجلب تعمل بنظام realtime ستتحدث وحدها)
+            setTimeout(() => { statusDiv.style.display = 'none'; }, 4000);
+        } catch (error) {
+            alert("❌ خطأ في الاتصال بقاعدة البيانات: " + error.message);
+            statusDiv.style.display = 'none';
+        }
+    }
+    // ==========================================
+    // 📦 دوال رفع المنتجات بالإكسيل (Products Excel)
+    // ==========================================
+
+    // 1. تحميل نموذج المنتجات
+    function downloadProductTemplate() {
+        const wb = XLSX.utils.book_new();
+        
+        // رؤوس الأعمدة
+        const headers = ["id", "name", "price", "category", "details", "images", "video", "colors"];
+        
+        // صف مثال توضيحي
+        const example = [
+            "SHARP-REF-100",           // الكود (id)
+            "ثلاجة شارب 18 قدم",       // الاسم
+            "25000",                   // السعر
+            "ثلاجات",                  // القسم
+            "<h3>مواصفات ممتازة</h3>", // التفاصيل (يمكن html)
+            "link1.jpg, link2.jpg",    // الصور (مفصولة بفاصلة)
+            "https://youtu.be/...",    // الفيديو
+            '[{"name":"Red","code":"#ff0000"}]' // الألوان (اختياري - صيغة JSON)
+        ];
+
+        const ws_data = [headers, example];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, "Products");
+        XLSX.writeFile(wb, "Products_Template.xlsx");
+    }
+
+    // 2. معالجة ملف المنتجات
+    function handleProductExcel(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const statusDiv = document.getElementById('prod-upload-status');
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = 'orange';
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري قراءة المنتجات...';
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                let foundData = [];
+
+                // البحث في جميع الصفحات
+                for (let i = 0; i < workbook.SheetNames.length; i++) {
+                    const sheet = workbook.Sheets[workbook.SheetNames[i]];
+                    const json = XLSX.utils.sheet_to_json(sheet, {defval: ""});
+                    if (json.length > 0) { foundData = json; break; }
+                }
+
+                if (foundData.length === 0) {
+                    alert("⚠️ الملف فارغ!");
+                    statusDiv.style.display = 'none';
+                    return;
+                }
+                
+                uploadBulkProducts(foundData);
+
+            } catch (err) {
+                console.error(err);
+                alert("❌ خطأ في القراءة: " + err.message);
+                statusDiv.style.display = 'none';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        input.value = "";
+    }
+
+    // 3. رفع المنتجات إلى Firebase
+async function uploadBulkProducts(data) {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+    
+    const statusDiv = document.getElementById('prod-upload-status');
+    statusDiv.innerHTML = `جاري رفع ${data.length} منتج...`;
+
+    const chunkSize = 400; 
+    const chunks = [];
+    for (let i = 0; i < data.length; i += chunkSize) {
+        chunks.push(data.slice(i, i + chunkSize));
+    }
+
+    let totalUploaded = 0;
+
+    // دالة لتنظيف المفاتيح
+    function normalizeProductKeys(obj) {
+        const newObj = {};
+        Object.keys(obj).forEach(key => newObj[key.toString().trim().toLowerCase()] = obj[key]);
+        return newObj;
+    }
+
+    try {
+        for (const chunk of chunks) {
+            const batch = db.batch();
+            
+            chunk.forEach((rawItem) => {
+                const item = normalizeProductKeys(rawItem);
+                
+                // استخراج المعرف والاسم
+                const id = String(item['id'] || item['code'] || item['الكود'] || item['كود المنتج'] || "").trim();
+                let rawName = item['name'] || item['الاسم'] || item['اسم المنتج'] || "";
+                
+                // تنظيف الاسم والتفاصيل
+                const cleanName = DOMPurify.sanitize(String(rawName), {ALLOWED_TAGS: []});
+                let rawDetails = item['details'] || item['التفاصيل'] || item['الوصف'] || "";
+                const cleanDetails = DOMPurify.sanitize(String(rawDetails));
+
+                // --- (تصحيح الخطأ) معالجة الصور والألوان ---
+                // استخراج الصور من النص المفصول بفاصلة
+                let rawImages = item['images'] || item['صور'] || item['الصور'] || "";
+                let imagesArr = [];
+                if(String(rawImages).trim()) {
+                    imagesArr = String(rawImages).split(',').map(s => s.trim()).filter(s => s);
+                }
+
+                // استخراج الألوان (نفترض أنها JSON أو نص بسيط)
+                let rawColors = item['colors'] || item['الوان'] || item['الألوان'] || "[]";
+                let colorsArr = [];
+                try {
+                    // محاولة قراءة JSON
+                    colorsArr = JSON.parse(rawColors);
+                } catch(e) {
+                    // إذا فشل، نعتبرها نصاً ونحاول تحويلها لهيكل بسيط (اختياري)
+                    console.warn("صيغة الألوان غير صحيحة للمنتج: " + id);
+                    colorsArr = []; 
+                }
+                // -------------------------------------------
+
+                if (id && cleanName) {
+                    const docRef = db.collection("products").doc(id);
+                    
+                    const productData = {
+                        name: cleanName,
+                        price: String(item['price'] || item['السعر'] || ""),
+                        category: String(item['category'] || item['القسم'] || "عام"),
+                        details: cleanDetails,
+                        images: imagesArr, // المتغير الآن معرف
+                        video: String(item['video'] || item['الفيديو'] || ""),
+                        colors: colorsArr, // المتغير الآن معرف
+                        updatedAt: Date.now()
+                    };
+
+                    batch.set(docRef, productData, {merge: true});
+                    totalUploaded++;
+                }
+            });
+
+            await batch.commit();
+        }
+
+        await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+        
+        statusDiv.style.color = 'green';
+        statusDiv.innerHTML = `✅ تم رفع/تحديث ${totalUploaded} منتج بنجاح!`;
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+
+    } catch (error) {
+        console.error(error);
+        statusDiv.style.color = 'red';
+        statusDiv.innerHTML = "❌ حدث خطأ أثناء الرفع: " + error.message;
+    }
+}
+
+    // 4. دالة تنزيل نسخة احتياطية كاملة للمنتجات
+    function downloadProductsBackup() {
+        // التحقق من وجود منتجات محملة
+        if (!localProducts || localProducts.length === 0) {
+            return alert("⚠️ لا توجد منتجات لعرضها أو تحميلها حالياً.");
+        }
+
+        if (!confirm(`هل تريد تنزيل نسخة احتياطية لـ ${localProducts.length} منتج؟`)) return;
+
+        // تجهيز البيانات لتناسب ملف الإكسيل
+        // نقوم بتحويل المصفوفات (الصور والألوان) إلى نصوص ليمكن تخزينها في خلية واحدة
+        const backupData = localProducts.map(p => {
+            return {
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                category: p.category,
+                details: p.details, // سيحتفظ بكود HTML
+                // تحويل مصفوفة الصور لنص مفصول بفاصلة
+                images: (p.images || []).join(','), 
+                video: p.video,
+                // تحويل كائن الألوان لنص JSON ليتم استعادته بشكل صحيح عند الرفع
+                colors: JSON.stringify(p.colors || []) 
+            };
+        });
+
+        // إنشاء ملف الإكسيل
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(backupData);
+        
+        // تعديل عرض الأعمدة قليلاً لتكون مقروءة
+        const wscols = [
+            {wch: 15}, // id
+            {wch: 30}, // name
+            {wch: 10}, // price
+            {wch: 15}, // category
+            {wch: 20}, // details
+            {wch: 30}, // images
+            {wch: 20}, // video
+            {wch: 20}  // colors
+        ];
+        ws['!cols'] = wscols;
+
+        XLSX.utils.book_append_sheet(wb, ws, "Backup_Products");
+        
+        // تسمية الملف بالتاريخ الحالي
+        const dateStr = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `Elaraby_Products_Backup_${dateStr}.xlsx`);
+    }
+// ☁️ إعدادات Cloudinary (يجب تعديلها)// ==========================================
+// ☁️ دالة الرفع على Cloudinary
+// ==========================================
+async function uploadImageToCloudinary(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // إعدادات حسابك
+    const cloudName = "dkuow8vxw"; 
+    const uploadPreset = "elaraby_broducts"; 
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+    // عناصر الواجهة
+    const statusDiv = document.getElementById("cl-upload-status");
+    const textArea = document.getElementById("images");
+
+    // عرض حالة "جاري الرفع"
+    statusDiv.style.display = "block";
+    statusDiv.style.color = "#e91e63"; // لون وردي
+    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري رفع الصورة...';
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
+    try {
+        const response = await fetch(uploadUrl, {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+            // إضافة الرابط للمربع (مع وضع فاصلة إذا كان هناك صور سابقة)
+            const currentText = textArea.value.trim();
+            if (currentText.length > 0) {
+                textArea.value = currentText + "," + data.secure_url;
+            } else {
+                textArea.value = data.secure_url;
+            }
+
+            // تحديث المعاينة فوراً
+            syncPreviews();
+
+            // رسالة نجاح
+            statusDiv.style.color = "green";
+            statusDiv.innerHTML = '✅ تم الرفع بنجاح!';
+            
+            // إخفاء الرسالة بعد ثانيتين
+            setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+        } else {
+            throw new Error(data.error ? data.error.message : "فشل الرفع");
+        }
+
+    } catch (error) {
+        console.error("Upload Error:", error);
+        statusDiv.style.color = "red";
+        statusDiv.innerHTML = '❌ خطأ: ' + error.message;
+    } finally {
+        // تفريغ ملف الإدخال للسماح برفع نفس الملف مرة أخرى إذا لزم الأمر
+        input.value = "";
+    }
+}
+// ==========================================
+// ☁️ دالة رفع صورة لون المنتج (الجديدة)
+// ==========================================
+async function uploadColorImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // إعدادات حسابك (نفس المستخدمة في الصور الرئيسية)
+    const cloudName = "dkuow8vxw"; 
+    const uploadPreset = "elaraby_broducts"; 
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+    // عناصر الواجهة
+    const statusDiv = document.getElementById("color-upload-status");
+    const urlInput = document.getElementById("cImg");
+
+    // عرض حالة "جاري الرفع"
+    statusDiv.style.display = "block";
+    statusDiv.style.color = "#e91e63"; 
+    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري رفع صورة اللون...';
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
+    try {
+        const response = await fetch(uploadUrl, {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+            // وضع الرابط في حقل صورة اللون
+            urlInput.value = data.secure_url;
+
+            // رسالة نجاح
+            statusDiv.style.color = "green";
+            statusDiv.innerHTML = '✅ تم الرفع! اضغط "إضافة" لحفظ اللون.';
+            
+            // إخفاء الرسالة بعد 3 ثواني
+            setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
+        } else {
+            throw new Error(data.error ? data.error.message : "فشل الرفع");
+        }
+
+    } catch (error) {
+        console.error("Color Upload Error:", error);
+        statusDiv.style.color = "red";
+        statusDiv.innerHTML = '❌ خطأ: ' + error.message;
+    } finally {
+        input.value = ""; // تفريغ الملف للسماح برفع آخر
+    }
+}
+    // 🛡️ نظام الصلاحيات المحدث
+    // ===================
+    
+    // متغير لتخزين دور المستخدم الحالي
+    let currentUserRole = null;
+
+    // --- ضمان وجود مدير واحد على الأقل (أول دخول يصبح مدير إذا لا يوجد مدير) ---
+    async function ensureAdminExists(userEmail) {
+        try {
+            const q = await db.collection('app_users').where('role', '==', 'admin').limit(1).get();
+            if (q.empty) {
+                // لا يوجد مدير مسجل بعد -> اجعل هذا المستخدم مديراً
+                await db.collection('app_users').doc(userEmail).set({
+                    email: userEmail,
+                    role: 'admin',
+                    createdAt: Date.now(),
+                    createdByAuto: true
+                });
+                console.info("auto-created admin:", userEmail);
+            }
+        } catch (e) {
+            console.error("ensureAdminExists error:", e);
+        }
+    }
+
+    // تعديل مراقب تسجيل الدخول ليشمل التأكد من وجود مدير وتحميل الصلاحيات
+    auth.onAuthStateChanged(async user => {
+        const overlay = document.getElementById('login-overlay');
+        const emailDisplay = document.getElementById('user-email-display');
+        
+        if(user) {
+            try {
+                // إذا لم يوجد أي مدير، اعطِ المستخدم الحالي صلاحية Admin تلقائياً
+                await ensureAdminExists(user.email);
+
+                // 1. جلب سجل المستخدم (بناءً على البريد)
+                const userDoc = await db.collection('app_users').doc(user.email).get();
+                
+                if (userDoc.exists) {
+                    currentUserRole = userDoc.data().role;
+                } else {
+                    // إذا لم يوجد سجل لهذا المستخدم (وليس مديراً)، نمنحه دور viewer افتراضياً
+                    currentUserRole = 'viewer'; 
+                }
+
+                // 2. تطبيق الصلاحيات على الواجهة
+                applyPermissions(currentUserRole);
+
+                // 3. الدخول
+                overlay.style.display = 'none';
+                if(emailDisplay) emailDisplay.innerText = `${user.email} (${getRoleName(currentUserRole)})`;
+                
+                // إذا كان المدير فتح قسم المستخدمين فعرض القائمة تلقائياً
+                if (currentUserRole === 'admin') {
+                    loadUsersList();
+                }
+
+                updateDashboardStats(); 
+            } catch (err) {
+console.error("Auth state handling error:", err);
+alert("حدث خطأ أثناء تحميل بيانات المستخدم:\n" + err.message); // هذا السطر سيخبرك بالسبب
+overlay.style.display = 'flex';
+
+            }
+        } else {
+            overlay.style.display = 'flex';
+        }
+    });
+
+    // دالة تطبيق الصلاحيات (إخفاء/إظهار الأزرار) — تم التعديل لتمكين المشاهد من الوصول لتقارير المبيعات فقط
+   // ...existing code...
+function applyPermissions(role) {
+    // أخفِ كل عناصر القائمة أولاً
+    document.querySelectorAll('.nav-menu li').forEach(li => li.style.display = 'none');
+
+    // إظهار زر تقارير المبيعات
+    const salesBtn = document.querySelector('button[onclick*="p-sales-report"]');
+    if (salesBtn && salesBtn.parentElement) {
+        salesBtn.parentElement.style.display = 'block';
+        salesBtn.style.display = 'flex';
+    }
+
+    // إظهار زر الأمان (لوحة تسجيل الخروج) للمشاهد والمحرر أيضاً
+    const securityBtn = document.querySelector('button[onclick*="p-security"]');
+    if (securityBtn && securityBtn.parentElement) {
+        securityBtn.parentElement.style.display = 'block';
+        securityBtn.style.display = 'flex';
+    }
+
+    // إظهار أو إخفاء الألواح: اجعل لوحة التقارير نشطة افتراضياً
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    const salesPanel = document.getElementById('p-sales-report');
+    if (salesPanel) salesPanel.classList.add('active');
+
+    // أخفِ أزرار الحفظ/تعديل/حذف عامة مع استثناء الأزرار داخل تقارير المبيعات وداخل لوحة الأمان (تسجيل الخروج)
+    document.querySelectorAll('.btn-save, .btn-update, .btn-red').forEach(b => {
+        if (b.closest && (b.closest('#p-sales-report') || b.closest('#p-security'))) return;
+        b.style.display = 'none';
+    });
+
+    // اخفاء عناصر رفع الملفات وباقي عناصر التحكم خارج لوحة التقارير (واستثناء لوحة الأمان)
+    document.querySelectorAll('input[type="file"], .form-grid input[disabled-hidden]').forEach(el => {
+        if (el.closest && (el.closest('#p-sales-report') || el.closest('#p-security'))) return;
+        el.style.display = 'none';
+    });
+
+    // إخفاء كارت "بلا صور" للمشاهد وتعطيل النقر عليه
+    const noImgCard = document.querySelector('.stat-card.clickable');
+    if (role === 'viewer') {
+        if (noImgCard) {
+            noImgCard.style.display = 'none';
+            noImgCard.style.pointerEvents = 'none';
+            noImgCard.removeAttribute('onclick');
+        }
+        try { loadSalesReports(); } catch (e) { console.error(e); }
+        return;
+    }
+
+    // للمحرر/المدير: إظهار عناصر القائمة وأزرار الإجراءات وإعادة كارت "بلا صور"
+    if (role === 'editor' || role === 'admin') {
+        document.querySelectorAll('.nav-menu li').forEach(li => li.style.display = 'block');
+        document.querySelectorAll('.btn-save, .btn-update, .btn-red').forEach(b => b.style.display = 'flex');
+        if (noImgCard) {
+            noImgCard.style.display = 'block';
+            noImgCard.style.pointerEvents = 'auto';
+            noImgCard.setAttribute('onclick', 'filterNoImageProducts()');
+        }
+    }
+
+        // إذا كان المدير، إظهار زر إدارة المستخدمين
+        if (role === 'admin') {
+            const usersBtn = document.querySelector('button[onclick*="p-users"]');
+            if (usersBtn && usersBtn.parentElement) {
+                usersBtn.parentElement.style.display = 'block';
+                usersBtn.style.display = 'flex';
+            }
+        }
+    }
+
+    // مساعدة لإخفاء زر محدد عبر معرف اللوحة (يُترك إن لزم)
+    function hideNav(panelId) {
+        const btn = document.querySelector(`button[onclick*="${panelId}"]`);
+        if(btn && btn.parentElement) btn.parentElement.style.display = 'none';
+    }
+
+    function getRoleName(role) {
+        if(role === 'admin') return 'مدير كامل';
+        if(role === 'editor') return 'محرر';
+        if(role === 'viewer') return 'مشاهد';
+        return 'غير محدد';
+    }
+
+    // 👥 إدارة المستخدمين (Backend Logic)
+    // ===============================
+    
+    // حفظ/تحديث مستخدم
+    async function saveUserRole() {
+        if(currentUserRole !== 'admin') return alert("⛔ هذه الخاصية للمدراء فقط!");
+
+        const email = document.getElementById('u-email').value.toLowerCase().trim();
+        const role = document.getElementById('u-role').value;
+
+        if(!email) return alert("اكتب البريد الإلكتروني");
+
+        try {
+            await db.collection('app_users').doc(email).set({
+                email: email,
+                role: role,
+                updatedAt: Date.now(),
+                updatedBy: auth.currentUser.email
+            });
+            alert("✅ تم تحديث صلاحيات المستخدم");
+            document.getElementById('u-email').value = '';
+            loadUsersList();
+        } catch(e) {
+            alert("❌ خطأ: " + e.message);
+        }
+    }
+
+    // عرض قائمة المستخدمين
+    function loadUsersList() {
+        const listDiv = document.getElementById('users-list');
+        db.collection('app_users').onSnapshot(snap => {
+            listDiv.innerHTML = snap.docs.map(doc => {
+                const d = doc.data();
+                return `
+                <div style="background:#fff; padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <strong>${d.email}</strong>
+                        <span style="background:#e0f2fe; color:#0284c7; padding:2px 8px; border-radius:10px; font-size:11px;">${getRoleName(d.role)}</span>
+                    </div>
+                    <button onclick="deleteUserRole('${doc.id}')" class="btn btn-red" style="width:auto; padding:5px;"><i class="fas fa-trash"></i></button>
+                </div>`;
+            }).join('');
+        });
+    }
+
+    // حذف صلاحية مستخدم
+    async function deleteUserRole(email) {
+        if(currentUserRole !== 'admin') return alert("⛔ للمدراء فقط");
+        if(confirm(`هل تريد حذف صلاحيات ${email}؟`)) {
+            await db.collection('app_users').doc(email).delete();
+        }
+    }
+
+    // تشغيل قائمة المستخدمين عند فتح القسم
+    document.getElementById('nav-users').addEventListener('click', loadUsersList);
+
+
+ // 📊 تقارير المبيعات + تصدير Excel 
+    // =============================
+  // 1. المتغير العام
+    let allSales = [];
+
+    // 2. جلب البيانات (مع المعرف ID)
+    async function loadSalesReports() {
+        const tbody = document.getElementById('sales-report-body');
+        const filterBranch = document.getElementById('filter-branch').value.toLowerCase();
+        
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> جاري الاتصال بالسيرفر...</td></tr>';
+
+        try {
+            const snap = await db.collection('sales_transactions')
+                                 .orderBy('createdAt', 'desc')
+                                 .limit(100)
+                                 .get();
+            
+            if (snap.empty) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#666;">لا توجد بيانات</td></tr>';
+                document.getElementById('total-sales-display').innerText = "0 ج.م";
+                allSales = [];
+                return;
+            }
+
+            // تخزين البيانات + الـ ID الخاص بكل مستند
+            allSales = snap.docs.map(d => ({
+                id: d.id, // هذا هو المهم للحذف
+                ...d.data()
+            }));
+            
+            renderSalesTable(allSales, filterBranch);
+            
+        } catch(e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:red;">خطأ: ${e.message}</td></tr>`;
+        }
+    }
+
+    // 3. رسم الجدول (مع زر حذف لكل منتج)
+    function renderSalesTable(sales, branchFilter) {
+        const tbody = document.getElementById('sales-report-body');
+        let grandTotal = 0; 
+        const groupedSales = {};
+
+        sales.forEach(s => {
+            const rawBranch = s.branch ? s.branch.trim() : 'فرع غير محدد';
+            if (branchFilter && !rawBranch.toLowerCase().includes(branchFilter)) return;
+
+            if (!groupedSales[rawBranch]) {
+                groupedSales[rawBranch] = { name: rawBranch, items: [], branchTotal: 0 };
+            }
+            // نمرر الكائن كاملاً (بما فيه id)
+            groupedSales[rawBranch].items.push(s);
+            groupedSales[rawBranch].branchTotal += Number(s.price) || 0;
+            grandTotal += Number(s.price) || 0;
+        });
+
+        const branchNames = Object.keys(groupedSales);
+        if(branchNames.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">لا توجد نتائج</td></tr>';
+            document.getElementById('total-sales-display').innerText = "0 ج.م";
+            return;
+        }
+
+        tbody.innerHTML = branchNames.map(bName => {
+            const branch = groupedSales[bName];
+            
+            const productsListHTML = branch.items.map(item => 
+                `<div style="border-bottom:1px dashed #eee; padding:5px 0; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1;">
+                        <span style="color:#666; font-size:11px;">[${item.date}]</span>
+                        <span style="font-weight:bold; color:#333;">${item.product}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="color:#10b981;">${Number(item.price).toLocaleString()} ج.م</span>
+                        <!-- زر الحذف للمدير -->
+                        <button onclick="deleteSaleFromDashboard('${item.id}')" title="حذف هذا المنتج" 
+                                style="background:#fee2e2; color:#ef4444; border:none; width:20px; height:20px; border-radius:50%; cursor:pointer; font-size:12px; line-height:1;">
+                            ×
+                        </button>
+                    </div>
+                 </div>`
+            ).join('');
+
+            return `
+            <tr style="border-bottom:2px solid #e2e8f0; background:#fff;">
+                <td style="padding:15px; vertical-align:top; border-left:1px solid #eee;">
+                    <div style="font-weight:800; color:#1a73e8; font-size:14px;">🏪 ${branch.name}</div>
+                    <div style="font-size:11px; color:#888; margin-top:5px;">عدد: ${branch.items.length}</div>
+                </td>
+                <td style="padding:10px; vertical-align:top; border-left:1px solid #eee; background:#f8fafc;">
+                    ${productsListHTML}
+                </td>
+                <td style="padding:15px; vertical-align:middle; text-align:center; font-weight:bold; color:#059669; font-size:15px;">
+                    ${branch.branchTotal.toLocaleString()} ج.م
+                </td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('total-sales-display').innerText = grandTotal.toLocaleString() + " ج.م";
+    }
+
+    // 4. دالة الحذف الجديدة للمدير
+    async function deleteSaleFromDashboard(docId) {
+        if(!confirm("هل أنت متأكد من حذف هذا المنتج من السجل؟")) return;
+        
+        try {
+            await db.collection('sales_transactions').doc(docId).delete();
+            // إعادة تحميل البيانات لتحديث الجدول
+            loadSalesReports();
+        } catch(e) {
+            alert("خطأ في الحذف: " + e.message);
+        }
+    }
+
+// دالة تحميل تقرير المبيعات Excel
+    function downloadSalesReportExcel() {
+        // التحقق من وجود بيانات
+        if(!allSales || allSales.length === 0) {
+            alert("⚠️ لا توجد بيانات لتحميلها حالياً. يرجى الضغط على 'تحديث البيانات' أولاً لجلب السجلات.");
+            return;
+        }
+
+        // 1. تجهيز البيانات للإكسيل
+        // نقوم بترتيب البيانات حسب الفرع لتكون منظمة
+        const sortedSales = allSales.sort((a, b) => {
+            const branchA = (a.branch || "").toLowerCase();
+            const branchB = (b.branch || "").toLowerCase();
+            if (branchA < branchB) return -1;
+            if (branchA > branchB) return 1;
+            return 0;
+        });
+
+        // تحويل البيانات لشكل مناسب للإكسيل (أسماء الأعمدة بالعربي)
+        const excelData = sortedSales.map(s => ({
+            "تاريخ العملية": s.date,
+            "اسم الفرع": s.branch || "غير محدد",
+            "المنتج": s.product,
+            "السعر (ج.م)": Number(s.price) || 0
+        }));
+
+        // 2. إنشاء ورقة العمل (Worksheet)
+        const ws = XLSX.utils.json_to_sheet(excelData);
+
+        // تنسيق عرض الأعمدة (اختياري لجمال الشكل)
+        const wscols = [
+            {wch: 15}, // التاريخ
+            {wch: 25}, // الفرع
+            {wch: 30}, // المنتج
+            {wch: 15}  // السعر
+        ];
+        ws['!cols'] = wscols;
+
+        // 3. إنشاء الملف وحفظه
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "تقرير المبيعات");
+        
+        // اسم الملف يحتوي على التاريخ والوقت
+        const dateStr = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `Sales_Report_${dateStr}.xlsx`);
+    }
+    // دالة إرسال الإشعارات 
+async function sendNotification() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+
+    const msg = document.getElementById('notifyMsg').value;
+    const type = document.getElementById('notifyType').value;
+    const isActive = document.getElementById('notifStatus').value === "true";
+
+    try {
+        await db.collection("app_config").doc("notifications").set({
+            message: msg,
+            type: type, // info, warning, danger
+            active: isActive,
+            updatedAt: Date.now()
+        });
+        alert("✅ تم تحديث حالة الإشعارات بنجاح");
+    } catch(e) {
+        alert("❌ حدث خطأ: " + e.message);
+    }
+}
+
+// كود لجلب حالة الإشعارات عند فتح اللوحة (لتعرف الحالة الحالية)
+db.collection("app_config").doc("notifications").onSnapshot(doc => {
+    if(doc.exists) {
+        const d = doc.data();
+        document.getElementById('notifyMsg').value = d.message || "";
+        document.getElementById('notifyType').value = d.type || "info";
+        document.getElementById('notifStatus').value = d.active ? "true" : "false";
+    }
+});
+// متغيرات لتخزين الكارتات حتى لا يحدث تداخل عند التحديث
+let charts = {}; 
+
+async function calculateAnalytics() {
+    // 1. جلب البيانات
+    const snap = await db.collection('sales_transactions').get();
+    if (snap.empty) return alert("لا توجد بيانات للتحليل");
+
+    const data = snap.docs.map(d => d.data());
+
+    // 2. معالجة البيانات
+    let branchSales = {};
+    let productCounts = {};
+    let totalRevenue = 0;
+
+    data.forEach(item => {
+        const price = Number(item.price) || 0;
+        const branch = item.branch || "غير محدد";
+        const product = item.product || "منتج مجهول";
+
+        // تجميع الفروع
+        branchSales[branch] = (branchSales[branch] || 0) + price;
+        
+        // تجميع المنتجات (بالعدد)
+        productCounts[product] = (productCounts[product] || 0) + 1;
+
+        totalRevenue += price;
+    });
+
+    // تحديث رقم الإجمالي
+    document.getElementById('total-revenue-analytics').innerText = totalRevenue.toLocaleString() + " ج.م";
+
+    // 3. تجهيز البيانات للرسم
+    // الفروع
+    const branchLabels = Object.keys(branchSales);
+    const branchData = Object.values(branchSales);
+
+    // المنتجات (ترتيب تنازلي للأكثر مبيعاً)
+    const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
+    
+    // أعلى 5
+    const top5 = sortedProducts.slice(0, 5);
+    // أقل 5 (نأخذ من النهاية ونعكس الترتيب)
+    const low5 = sortedProducts.slice(-5).reverse();
+
+    // 4. رسم الجرافات (Charts)
+    renderChart('branchChart', 'bar', branchLabels, branchData, 'مبيعات الفروع (جنية)', ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']);
+    renderChart('topProductsChart', 'doughnut', top5.map(i=>i[0]), top5.map(i=>i[1]), 'عدد المبيعات', ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5']);
+    renderChart('lowProductsChart', 'pie', low5.map(i=>i[0]), low5.map(i=>i[1]), 'عدد المبيعات', ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2']);
+}
+
+// دالة مساعدة لإنشاء الرسم وتدمير القديم
+function renderChart(canvasId, type, labels, data, label, colors) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    
+    if (charts[canvasId]) {
+        charts[canvasId].destroy(); // تدمير الرسم القديم لتجنب التداخل
+    }
+
+    charts[canvasId] = new Chart(ctx, {
+        type: type,
+        data: {
+            labels: labels,
+            datasets: [{
+                label: label,
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>
