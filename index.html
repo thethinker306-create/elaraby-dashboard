@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- مكتبة DOMPurify لتنظيف النصوص من الأكواد الخبيثة -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
@@ -90,6 +91,7 @@
         * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
         body { background-color: var(--bg-body); margin: 0; display: flex; color: var(--text-main); min-height: 100vh; font-size: 13px; }
 
+
         .sidebar { width: 200px; background: var(--dark-sidebar); color: white; position: fixed; height: 100vh; right: 0; padding: 10px; z-index: 1000; transition: 0.3s; }
         .sidebar-brand { font-size: 14px; font-weight: 800; text-align: center; margin-bottom: 15px; color: #38bdf8; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
         .nav-menu { list-style: none; padding: 0; }
@@ -174,9 +176,13 @@
         }
         .color-preview-dot { width: 15px; height: 15px; border-radius: 50%; border: 1px solid #ccc; }
 
-        @media (max-width: 900px) {
-            .sidebar { width: 50px; padding: 5px; }
+            .sidebar { width: 240px; padding: 5px; }
             .sidebar-brand, .nav-link span { display: none; }
+             .nav-link span, 
+    .sidebar-brand span { 
+        display: inline !important; 
+    }
+
             .main-content { margin-right: 50px; width: calc(100% - 50px); }
             .form-grid { grid-template-columns: 1fr; }
             .full-width { grid-column: span 1; }
@@ -194,6 +200,52 @@
     box-shadow: 0 5px 15px rgba(245, 158, 11, 0.2);
     background: #fffbeb; /* تغيير بسيط في الخلفية */
 }
+/* --- تنسيق زر القائمة الجديد --- */
+.header-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    background: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#toggle-sidebar-btn {
+    background: transparent;
+    border: none;
+    color: var(--main-blue);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    transition: 0.3s;
+}
+
+#toggle-sidebar-btn:hover {
+    transform: scale(1.1);
+    color: var(--dark-sidebar);
+}
+
+/* --- كلاسات الحالة (مفتوح/مغلق) --- */
+/* إخفاء القائمة بتحريكها لليمين خارج الشاشة */
+ .sidebar.closed { 
+        right: -250px !important; 
+    }
+
+/* توسيع المحتوى ليأخذ الشاشة كاملة */
+.main-content.expanded {
+    margin-right: 0 !important;
+    width: 100% !important;
+}
+
+/* تحسين تجربة الموبايل عند الإغلاق */
+@media (max-width: 900px) {
+    .sidebar { width: 200px; } /* إعادة الحجم الطبيعي للموبايل ليكون مقروءاً عند الفتح */
+    .sidebar.closed { right: -250px !important; }
+    .main-content { margin-right: 0; width: 100%; } /* في الموبايل الوضع الافتراضي مغلق */
+}
+
     </style>
 </head>
 <body>
@@ -244,7 +296,21 @@
     </ul>
 </aside>
 
-<main class="main-content">
+<main class="main-content" id="main-area">
+    <div class="header-toolbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h4 style="margin:0; color:var(--text-main);">لوحة التحكم</h4>
+        </div>
+        
+<div style="font-size:12px; font-weight:bold; color:#64748b; display:flex; align-items:center; gap:5px;">
+    <span id="header-user-role" style="background:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:10px;">-</span>
+    <span id="header-user-email">زائر</span>
+    <i class="fas fa-user-circle" style="font-size:16px;"></i> 
+</div>
+    </div>
     <div class="stats-grid">
         <div class="stat-card">
             <i class="fas fa-database stat-icon" style="color:#1a73e8; background:#eff6ff;"></i>
@@ -710,7 +776,7 @@
             <input type="text" id="appAccessCode" placeholder="مثال: 2026" style="flex:2; font-weight:bold; text-align:center; letter-spacing:2px;">
             <button onclick="saveAppAccessCode()" class="btn btn-save" style="flex:1; background:#0284c7;">حفظ الكود الجديد</button>
         </div>
-        <p style="font-size:11px; color:#555; margin-top:5px;">* هذا الكود سيطلبه الموقع من أي شخص يحاول الدخول لصفحة البحث.</p>
+        <p style="font-size:10px; color:#555; margin-top:5px;">* هذا الكود سيطلبه الموقع من أي شخص يحاول الدخول لصفحة البحث.</p>
     </div>
         <div class="form-group" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px dashed #cbd5e1;">
             <label style="color:var(--main-blue);">إضافة / تعديل صلاحية مستخدم</label>
@@ -773,12 +839,28 @@ let currentServerConfig = {};
     let localProducts = [];
     let currentColors = [];
     let previousConfig = null; // متغير لحفظ الحالة السابقة (للتراجع)
-
+let lastVisibleProduct = null;
+const productsPerPage = 50;
+function loadInitialProducts() {
+    const listDiv = document.getElementById("suggestions");
     // جلب البيانات
-    db.collection("products").onSnapshot(snap => {
-        localProducts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        updateDashboardStats();
-    });
+    db.collection("products")
+      .orderBy("updatedAt", "desc") // ترتيب بالأحدث
+      .limit(productsPerPage)
+      .get()
+      .then((querySnapshot) => {
+        localProducts = [];
+querySnapshot.forEach((doc) => {
+            localProducts.push({ id: doc.id, ...doc.data() });
+        });
+        lastVisibleProduct = querySnapshot.docs[querySnapshot.docs.length - 1];
+        updateDashboardStats(); 
+console.log("تم تحميل آخر 50 منتج فقط لتوفير البيانات");
+      });
+}
+
+// استدعاء الدالة عند البدء بدلاً من السناب شوت المفتوح
+loadInitialProducts();
 
     db.collection("app_config").doc("ultimate_v5").onSnapshot(doc => {
     if(doc.exists) {
@@ -970,20 +1052,32 @@ async function commitProduct() {
         try {
             await db.collection("products").doc(id).set(data, {merge:true});
             await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
-            alert("✅ تم الحفظ");
+            Swal.fire({
+  title: 'تم الحفظ!',
+  text: 'تم تحديث بيانات المنتج بنجاح',
+  icon: 'success',
+  confirmButtonText: 'حسناً'
+});
         } catch(e) { alert("❌ خطأ: " + e.message); }
     }
     
     async function removeProduct() {
-        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول للحذف");
-        const id = document.getElementById("productId").value.trim();
-        if(id && confirm("حذف المنتج؟")) {
-            await db.collection("products").doc(id).delete();
-            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
-            alert("تم الحذف"); clearForm();
-        }
-    }
+    const result = await Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: "لن تتمكن من استرجاع هذا المنتج!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذفه!',
+        cancelButtonText: 'إلغاء'
+    });
 
+    if (result.isConfirmed) {
+        // ... كود الحذف ...
+        Swal.fire('تم الحذف!', 'تم حذف المنتج.', 'success');
+    }
+}
    // 1. التحكم في ظهور الحقول حسب الاختيار
     function toggleAdInputs() {
         const type = document.getElementById('adSourceType').value;
@@ -1180,7 +1274,6 @@ async function undoLastChange() {
             await auth.signInWithEmailAndPassword(email, pass);
             msg.innerText = "✅ تم الدخول بنجاح";
             msg.style.color = "#10b981";
-            // ستختفي النافذة تلقائياً بسبب auth.onAuthStateChanged
         } catch(e) {
             console.error(e);
             let errorText = "خطأ في البيانات";
@@ -2012,10 +2105,12 @@ async function uploadColorImage(input) {
     auth.onAuthStateChanged(async user => {
         const overlay = document.getElementById('login-overlay');
         const emailDisplay = document.getElementById('user-email-display');
-        
+         // عناصر الهيدر الجديد
+    const headerEmail = document.getElementById('header-user-email');
+    const headerRole = document.getElementById('header-user-role');
+
         if(user) {
             try {
-                // إذا لم يوجد أي مدير، اعطِ المستخدم الحالي صلاحية Admin تلقائياً
                 await ensureAdminExists(user.email);
 
                 // 1. جلب سجل المستخدم (بناءً على البريد)
@@ -2030,15 +2125,27 @@ async function uploadColorImage(input) {
 
                 // 2. تطبيق الصلاحيات على الواجهة
                 applyPermissions(currentUserRole);
+if(headerEmail) headerEmail.innerText = user.email;
+            
+            if(headerRole) {
 
                 // 3. الدخول
                 overlay.style.display = 'none';
                 if(emailDisplay) emailDisplay.innerText = `${user.email} (${getRoleName(currentUserRole)})`;
-                
-                // إذا كان المدير فتح قسم المستخدمين فعرض القائمة تلقائياً
-                if (currentUserRole === 'admin') {
-                    loadUsersList();
+                headerRole.innerText = getRoleName(currentUserRole);
+
+                // تلوين الشارة حسب الرتبة
+                if(currentUserRole === 'admin') {
+                    headerRole.style.background = '#fee2e2'; // أحمر فاتح للمدير
+                    headerRole.style.color = '#dc2626';
+                } else if(currentUserRole === 'editor') {
+                    headerRole.style.background = '#fef3c7'; // برتقالي للمحرر
+                    headerRole.style.color = '#d97706';
+                } else {
+                    headerRole.style.background = '#e0f2fe'; // أزرق للمشاهد
+                    headerRole.style.color = '#0284c7';
                 }
+            }
 
                 updateDashboardStats(); 
             } catch (err) {
@@ -2410,10 +2517,15 @@ let charts = {};
 
 async function calculateAnalytics() {
     // 1. جلب البيانات
-    const snap = await db.collection('sales_transactions').get();
-    if (snap.empty) return alert("لا توجد بيانات للتحليل");
+ const snap = await db.collection('sales_transactions')
+                         .orderBy('createdAt', 'desc')
+                         .limit(500) // حد أقصى 500 عملية لعدم تهنيج المتصفح
+                         .get();
+
+    if (snap.empty) return alert("لا توجد بيانات");
 
     const data = snap.docs.map(d => d.data());
+    
 
     // 2. معالجة البيانات
     let branchSales = {};
@@ -2483,8 +2595,7 @@ function renderChart(canvasId, type, labels, data, label, colors) {
         }
     });
 }
-// === دوال إدارة كود دخول التطبيق ===
-// 1. جلب الكود الحالي عند التحميل
+// === دوال إدارة كود دخول التطبيق === 
 db.collection("app_config").doc("access_control").onSnapshot(doc => {
     if(doc.exists && doc.data().searchPageCode) {
         const input = document.getElementById('appAccessCode');
@@ -2492,11 +2603,11 @@ db.collection("app_config").doc("access_control").onSnapshot(doc => {
     }
 });
 
-// 2. حفظ الكود الجديد
+// حفظ الكود الجديد
 async function saveAppAccessCode() {
     if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
-    // التحقق من الصلاحية (يمكنك تفعيلها للمدراء فقط)
-    // if(currentUserRole !== 'admin') return alert("للمدراء فقط");
+    // التحقق من الصلاحية //
+    if(currentUserRole !== 'admin') return alert("للمدراء فقط");
 
     const newCode = document.getElementById('appAccessCode').value.trim();
     if(!newCode) return alert("الرجاء كتابة كود");
@@ -2512,6 +2623,55 @@ async function saveAppAccessCode() {
         alert("خطأ: " + e.message);
     }
 }
+// --- دالة التحكم في القائمة (فتح/إغلاق) ---
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    sidebar.classList.toggle('closed');
+    
+    // في الشاشات الكبيرة فقط نعدل هامش المحتوى
+    if (window.innerWidth > 900) {
+        if (sidebar.classList.contains('closed')) {
+            mainContent.style.marginRight = "0";
+            mainContent.style.width = "100%";
+        } else {
+            mainContent.style.marginRight = "200px";
+            mainContent.style.width = "calc(100% - 200px)";
+        }
+    }
+}
+
+// --- تنفيذ الإغلاق التلقائي (عند النقر خارج القائمة أو على رابط) ---
+document.addEventListener('click', function(event) {
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('toggle-sidebar-btn');
+    const isMobile = window.innerWidth <= 900;
+
+    // 1. إغلاق القائمة عند النقر على أي رابط داخلها (في الموبايل فقط)
+    if (isMobile && event.target.closest('.nav-link')) {
+        if (!sidebar.classList.contains('closed')) {
+            toggleSidebar();
+        }
+    }
+
+    // 2. إغلاق القائمة عند النقر خارجها (في الموبايل فقط)
+    // الشرط: النقر ليس داخل القائمة، وليس على زر الفتح، والقائمة مفتوحة حالياً
+    if (isMobile && 
+        !sidebar.contains(event.target) && 
+        !toggleBtn.contains(event.target) && 
+        !sidebar.classList.contains('closed')) {
+        
+        toggleSidebar();
+    }
+});
+
+// ضمان أن القائمة مغلقة افتراضياً عند تحميل الصفحة على الموبايل
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.innerWidth <= 900) {
+        document.querySelector('.sidebar').classList.add('closed');
+    }
+});
 
 </script>
 </body>
