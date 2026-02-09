@@ -854,8 +854,10 @@ querySnapshot.forEach((doc) => {
             localProducts.push({ id: doc.id, ...doc.data() });
         });
         lastVisibleProduct = querySnapshot.docs[querySnapshot.docs.length - 1];
-        updateDashboardStats(); 
-console.log("تم تحميل آخر 50 منتج فقط لتوفير البيانات");
+updateDashboardStats(); // يحدث باقي الإحصائيات (الأقسام والصور)
+        updateRealCount();      // ✅ (جديد) يحدث العدد الإجمالي من السيرفر
+        
+        console.log("تم تحميل البيانات");
       });
 }
 
@@ -1052,6 +1054,7 @@ async function commitProduct() {
         try {
             await db.collection("products").doc(id).set(data, {merge:true});
             await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+            updateRealCount();
             Swal.fire({
   title: 'تم الحفظ!',
   text: 'تم تحديث بيانات المنتج بنجاح',
@@ -1062,9 +1065,19 @@ async function commitProduct() {
     }
     
     async function removeProduct() {
+    // 1. التأكد من وجود مستخدم مسجل
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول للحذف");
+
+    // 2. جلب كود المنتج
+    const id = document.getElementById("productId").value.trim();
+    if (!id) {
+        return Swal.fire('تنبيه', 'يرجى اختيار منتج أولاً لحذفه', 'warning');
+    }
+
+    // 3. رسالة التأكيد
     const result = await Swal.fire({
         title: 'هل أنت متأكد؟',
-        text: "لن تتمكن من استرجاع هذا المنتج!",
+        text: "لن تتمكن من استرجاع هذا المنتج (" + id + ") مرة أخرى!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -1073,11 +1086,31 @@ async function commitProduct() {
         cancelButtonText: 'إلغاء'
     });
 
+    // 4. تنفيذ الحذف عند الموافقة
     if (result.isConfirmed) {
-        // ... كود الحذف ...
-        Swal.fire('تم الحذف!', 'تم حذف المنتج.', 'success');
+        try {
+            // أمر الحذف الفعلي من Firebase
+            await db.collection("products").doc(id).delete();
+            
+            // تحديث وقت آخر تعديل للنظام
+            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+
+            // إظهار رسالة النجاح
+            Swal.fire('تم الحذف!', 'تم حذف المنتج بنجاح.', 'success');
+
+            // تفريغ الخانات وتحديث القائمة
+            clearForm();
+            
+            // (اختياري) إزالة المنتج من القائمة المحلية لتحديث الإحصائيات فوراً
+            localProducts = localProducts.filter(p => p.id !== id);
+            updateDashboardStats();
+
+        } catch (e) {
+            Swal.fire('خطأ!', 'حدثت مشكلة أثناء الحذف: ' + e.message, 'error');
+        }
     }
 }
+
    // 1. التحكم في ظهور الحقول حسب الاختيار
     function toggleAdInputs() {
         const type = document.getElementById('adSourceType').value;
@@ -2672,6 +2705,23 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelector('.sidebar').classList.add('closed');
     }
 });
+// دالة لجلب العدد الحقيقي من السيرفر مباشرة
+async function updateRealCount() {
+    try {
+        // استخدام دالة count() السريعة (لا تستهلك بيانات التحميل)
+        const snapshot = await db.collection("products").count().get();
+        const totalCount = snapshot.data().count;
+        
+        // تحديث الرقم في الشاشة
+        document.getElementById('count-total').innerText = totalCount;
+    } catch (e) {
+        console.log("Count aggregation failed, falling back to size", e);
+        // حل بديل في حالة حدوث خطأ في الدالة السابقة
+        db.collection("products").get().then(snap => {
+            document.getElementById('count-total').innerText = snap.size;
+        });
+    }
+}
 
 </script>
 </body>
