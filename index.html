@@ -816,9 +816,9 @@
     </div>
 </section>
 <script>
-  // ============================================================
+  // ============================
 // 1. إعداد نظام التنبيهات الموحد (Toasts & Alerts)
-// ============================================================
+// =============================
 
 // إعداد التنبيهات الصغيرة التي تظهر في الزاوية (Toast)
 const Toast = Swal.mixin({
@@ -852,9 +852,9 @@ function notify(message, type = 'success', mode = 'toast') {
     }
 }
 
-// ============================================================
+// ===============================
 // 2. السحر: تحويل رسائل alert العادية إلى SweetAlert تلقائياً
-// ============================================================
+// ==============================
 window.alert = function(message) {
     notify(message, 'warning', 'modal'); 
 };
@@ -974,7 +974,7 @@ loadInitialProducts();
             await db.collection("app_config").doc("ads").set(data);
             alert("✅ تم تحديث الإعلان بنجاح");
         } catch(e) {
-            alert("❌ خطأ: " + e.message);
+            notify('حدث خطأ ما', 'error');
         }
     }
 
@@ -1211,7 +1211,7 @@ async function commitProduct() {
             await db.collection("app_config").doc("ads").set(data);
             alert("✅ تم تحديث الإعلان بنجاح");
         } catch(e) {
-            alert("❌ خطأ: " + e.message);
+            notify('حدث خطأ ما', 'error');
         }
     }
     // --- وظائف المظهر والإعدادات ---
@@ -1478,7 +1478,7 @@ async function updateMaintenance() {
         
         alert(isActive ? "⛔ تم تفعيل وضع الصيانة" : "✅ تم فتح الموقع للزوار");
     } catch(e) {
-        alert("❌ خطأ: " + e.message);
+        notify('حدث خطأ ما', 'error');
     }
 }
 // دالة حفظ اسم المطور ورقم الواتساب فقط
