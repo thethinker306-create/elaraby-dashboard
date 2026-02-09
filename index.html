@@ -816,7 +816,49 @@
     </div>
 </section>
 <script>
-  
+  // ============================================================
+// 1. إعداد نظام التنبيهات الموحد (Toasts & Alerts)
+// ============================================================
+
+// إعداد التنبيهات الصغيرة التي تظهر في الزاوية (Toast)
+const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end', // مكان الظهور (أعلى اليمين)
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer)
+        toast.addEventListener('mouseleave', Swal.resumeTimer)
+    }
+});
+
+// دالة موحدة لاستدعاء التنبيهات بسهولة
+// النوع (type) يمكن أن يكون: 'success', 'error', 'warning', 'info'
+function notify(message, type = 'success', mode = 'toast') {
+    if (mode === 'toast') {
+        Toast.fire({
+            icon: type,
+            title: message
+        });
+    } else {
+        // وضع 'modal' لظهور نافذة في المنتصف
+        Swal.fire({
+            text: message,
+            icon: type,
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#3085d6'
+        });
+    }
+}
+
+// ============================================================
+// 2. السحر: تحويل رسائل alert العادية إلى SweetAlert تلقائياً
+// ============================================================
+window.alert = function(message) {
+    notify(message, 'warning', 'modal'); 
+};
+
 // متغير لتخزين الإعدادات السابقة للتراجع
 let previousConfigBackup = null;
 let currentServerConfig = {};
