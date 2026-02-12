@@ -187,7 +187,7 @@
             .form-grid { grid-template-columns: 1fr; }
             .full-width { grid-column: span 1; }
             .btn-group { flex-wrap: wrap; }
-
+        }
 /* تأثير التحويم على كروت الإحصائيات */
 .stat-card.clickable {
     cursor: pointer;
@@ -215,35 +215,29 @@
 .toggle-btn {
     position: fixed;
     top: 15px;
-    right: 220px; /* مكان الزر بجانب القائمة */
-    z-index: 1001;
-    background: var(--main-blue); 
-    color: white;
+    right: 210px; /* يظهر بجانب القائمة مباشرة */
+    z-index: 1100;
+    background: var(--main-blue) !important; /* لون موحد مع الهوية */
+    color: white !important;
     border: none;
     width: 40px;
     height: 40px;
     border-radius: 8px;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     display: flex; 
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* حركة الزر عند إغلاق القائمة (في الكمبيوتر والموبايل) */
+.toggle-btn.moved {
+    right: 20px !important;
 }
 
 #toggle-sidebar-btn:hover {
     transform: scale(1.1);
-    color: var(--dark-sidebar);
-}
-
-/* تنسيق حركة الزر عند تحركه */
-.toggle-btn.moved {
-    right: 20px !important; /* ينتقل لأقصى اليمين عند الغلق */
-    background: #334155; /* لون مختلف عند الغلق لتمييزه */
-}
-#toggle-sidebar-btn {
-    background: var(--main-blue) !important;
-    color: white !important;
+    background: var(--dark-sidebar) !important;
 }
 
 /* --- كلاسات الحالة (مفتوح/مغلق) --- */
@@ -260,6 +254,8 @@
 
 /* تحسين تجربة الموبايل عند الإغلاق */
 @media (max-width: 900px) {
+    .toggle-btn {
+        right: 210px;}
     .sidebar { width: 200px; }
     .sidebar.closed { right: -250px !important; }
     .main-content { margin-right: 0; width: 100%; } 
@@ -318,7 +314,7 @@
 <main class="main-content" id="main-area">
     <div class="header-toolbar">
         <div style="display:flex; align-items:center; gap:10px;">
-           <button id="toggle-sidebar-btn" class="toggle-btn" onclick="toggleSidebar()">
+            <button id="toggle-sidebar-btn" class="toggle-btn" onclick="toggleSidebar()">
     <i class="fas fa-bars"></i>
 </button>
             <h4 style="margin:0; color:var(--text-main);">لوحة التحكم</h4>
@@ -2721,12 +2717,14 @@ async function saveAppAccessCode() {
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
-    const btn = document.getElementById('toggle-sidebar-btn'); // تعريف الزر
+    const toggleBtn = document.getElementById('toggle-sidebar-btn');
     
+    // تبديل الكلاسات للحركة
     sidebar.classList.toggle('closed');
-    btn.classList.toggle('moved');
+    mainContent.classList.toggle('expanded');
+    toggleBtn.classList.toggle('moved'); // تحريك الزر لليمين
 
-    // منطق تعديل المحتوى للشاشات الكبيرة
+    // تنسيق إضافي للشاشات الكبيرة لضمان سلاسة العرض
     if (window.innerWidth > 900) {
         if (sidebar.classList.contains('closed')) {
             mainContent.style.marginRight = "0";
@@ -2737,7 +2735,6 @@ function toggleSidebar() {
         }
     }
 }
-
 // --- تنفيذ الإغلاق التلقائي (عند النقر خارج القائمة أو على رابط) ---
 document.addEventListener('click', function(event) {
     const sidebar = document.querySelector('.sidebar');
