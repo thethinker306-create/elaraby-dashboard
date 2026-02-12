@@ -187,7 +187,7 @@
             .form-grid { grid-template-columns: 1fr; }
             .full-width { grid-column: span 1; }
             .btn-group { flex-wrap: wrap; }
-        }
+
 /* تأثير التحويم على كروت الإحصائيات */
 .stat-card.clickable {
     cursor: pointer;
@@ -212,19 +212,38 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-#toggle-sidebar-btn {
-    background: transparent;
+.toggle-btn {
+    position: fixed;
+    top: 15px;
+    right: 220px; /* مكان الزر بجانب القائمة */
+    z-index: 1001;
+    background: var(--main-blue); 
+    color: white;
     border: none;
-    color: var(--main-blue);
-    font-size: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
     cursor: pointer;
-    padding: 5px;
-    transition: 0.3s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    display: flex; 
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
 }
 
 #toggle-sidebar-btn:hover {
     transform: scale(1.1);
     color: var(--dark-sidebar);
+}
+
+/* تنسيق حركة الزر عند تحركه */
+.toggle-btn.moved {
+    right: 20px !important; /* ينتقل لأقصى اليمين عند الغلق */
+    background: #334155; /* لون مختلف عند الغلق لتمييزه */
+}
+#toggle-sidebar-btn {
+    background: var(--main-blue) !important;
+    color: white !important;
 }
 
 /* --- كلاسات الحالة (مفتوح/مغلق) --- */
@@ -299,9 +318,9 @@
 <main class="main-content" id="main-area">
     <div class="header-toolbar">
         <div style="display:flex; align-items:center; gap:10px;">
-            <button id="toggle-sidebar-btn" onclick="toggleSidebar()">
-                <i class="fas fa-bars"></i>
-            </button>
+           <button id="toggle-sidebar-btn" class="toggle-btn" onclick="toggleSidebar()">
+    <i class="fas fa-bars"></i>
+</button>
             <h4 style="margin:0; color:var(--text-main);">لوحة التحكم</h4>
         </div>
         
@@ -2702,10 +2721,12 @@ async function saveAppAccessCode() {
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
+    const btn = document.getElementById('toggle-sidebar-btn'); // تعريف الزر
     
     sidebar.classList.toggle('closed');
-    
-    // في الشاشات الكبيرة فقط نعدل هامش المحتوى
+    btn.classList.toggle('moved');
+
+    // منطق تعديل المحتوى للشاشات الكبيرة
     if (window.innerWidth > 900) {
         if (sidebar.classList.contains('closed')) {
             mainContent.style.marginRight = "0";
