@@ -331,7 +331,11 @@
     <section id="p-products" class="panel active">
         <div class="form-group">
             <label>بحث أو إضافة (كود المنتج)</label>
-            <input type="text" id="productId" oninput="liveSearch(this.value)" placeholder="اكتب الكود هنا...." style="font-weight:bold; color:var(--main-blue);">
+          <input type="text" id="productId" 
+       oninput="liveSearch(this.value)" 
+       onblur="setTimeout(() => document.getElementById('suggestions').style.display = 'none', 200)"
+       placeholder="اكتب الكود هنا...." 
+       style="font-weight:bold; color:var(--main-blue);">
             <div id="suggestions"></div>
         </div>
 
@@ -882,9 +886,10 @@ let currentServerConfig = {};
     let currentColors = [];
     let previousConfig = null; // متغير لحفظ الحالة السابقة (للتراجع)
 let lastVisibleProduct = null;
-const productsPerPage = 50;
+const productsPerPage = 100;
 function loadInitialProducts() {
     const listDiv = document.getElementById("suggestions");
+    console.log("جاري تحميل كافة المنتجات للبحث...");
     // جلب البيانات
     db.collection("products")
       .orderBy("updatedAt", "desc") // ترتيب بالأحدث
