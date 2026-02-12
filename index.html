@@ -86,25 +86,82 @@
             --warning: #f59e0b;
             --danger: #ef4444;
             --border: #cbd5e1;
+           --primary-color: #2c3e50;
+           --accent-color: #3498db;
+           --sidebar-width: 260px;
+
         }
 
-        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
-        body { background-color: var(--bg-body); margin: 0; display: flex; color: var(--text-main); min-height: 100vh; font-size: 13px; }
+        * { box-sizing: border-box; 
+            font-family: 'Cairo', sans-serif;
+         }
+        body { background-color: var(--bg-body);
+             margin: 0; display: flex;
+             color: var(--text-main); 
+             min-height: 100vh;
+             font-size: 13px;
+             }
 
 
-        .sidebar { width: 200px; background: var(--dark-sidebar); color: white; position: fixed; height: 100vh; right: 0; padding: 10px; z-index: 1000; transition: 0.3s; }
-        .sidebar-brand { font-size: 14px; font-weight: 800; text-align: center; margin-bottom: 15px; color: #38bdf8; border-bottom: 1px solid #1e293b; padding-bottom: 10px; }
-        .nav-menu { list-style: none; padding: 0; }
+       .sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    right: 0; /* لأن الموقع RTL */
+    background: var(--primary-color);
+    color: white;
+    transition: transform 0.3s ease, width 0.3s ease;
+    z-index: 2000;
+    overflow-y: auto;
+    display: block !important; /* ضمان الظهور */
+}
+
+        .sidebar-brand { font-size: 14px;
+             font-weight: 800;
+             text-align: center;
+              margin-bottom: 15px;
+               color: #38bdf8;
+                border-bottom: 1px solid #1e293b; 
+                padding-bottom: 10px;
+             }
+
+        .nav-menu { list-style: none;
+             padding: 0; }
         .nav-link {
-            display: flex; align-items: center; gap: 8px; padding: 8px 10px; color: #94a3b8;
-            text-decoration: none; border-radius: 6px; transition: 0.2s; cursor: pointer; border: none; background: transparent; width: 100%; font-size: 12px; font-weight: 600; margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            color: #94a3b8;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: 0.2s;
+             cursor: pointer; 
+             border: none;
+             background: transparent;
+              width: 100%; 
+              font-size: 12px; 
+              font-weight: 600;
+              margin-bottom: 4px;
         }
+
         .nav-link:hover, .nav-link.active { background: #1e293b; color: white; }
         .nav-link.active { background: var(--main-blue); }
 
-        .main-content { flex: 1; margin-right: 200px; padding: 15px; width: calc(100% - 200px); }
+      .main-content {
+        margin-right: 0;
+        width: 100%;
+    transition: margin-right 0.3s ease, width 0.3s ease;
+    min-height: 100vh;
+    padding: 20px;
+}
         
-        .stats-grid { display: flex; gap: 10px; margin-bottom: 15px; }
+        .stats-grid { display: flex;
+             gap: 10px;
+              margin-bottom: 15px;
+            }
+
         .stat-card { 
             background: var(--white); padding: 8px 12px; border-radius: 8px; 
             box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: center; 
@@ -176,14 +233,17 @@
         }
         .color-preview-dot { width: 15px; height: 15px; border-radius: 50%; border: 1px solid #ccc; }
 
-            .sidebar { width: 240px; padding: 5px; }
-            .sidebar-brand, .nav-link span { display: none; }
+            .sidebar { width: 240px; 
+                padding: 5px;
+             }
+            .sidebar-brand, .nav-link span { display: none;
+             }
              .nav-link span, 
     .sidebar-brand span { 
         display: inline !important; 
     }
 
-            .main-content { margin-right: 50px; width: calc(100% - 50px); }
+           .main-content { margin-right: 0; width: 100%; }
             .form-grid { grid-template-columns: 1fr; }
             .full-width { grid-column: span 1; }
             .btn-group { flex-wrap: wrap; }
@@ -213,13 +273,19 @@
 }
 
 #toggle-sidebar-btn {
-    background: transparent;
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 3000; /* أعلى من كل شيء */
+    background: var(--accent-color);
+    color: white;
     border: none;
-    color: var(--main-blue);
-    font-size: 20px;
+    padding: 10px 15px;
+    border-radius: 5px;
     cursor: pointer;
-    padding: 5px;
-    transition: 0.3s;
+    display: flex !important; /* إجبار الزر على الظهور */
+    align-items: center;
+    justify-content: center;
 }
 
 #toggle-sidebar-btn:hover {
@@ -229,6 +295,8 @@
 
 /* --- كلاسات الحالة (مفتوح/مغلق) --- */
 /* إخفاء القائمة بتحريكها لليمين خارج الشاشة */
+.sidebar.open { right: 0 !important; }
+
  .sidebar.closed { 
         right: -250px !important; 
     }
@@ -241,10 +309,11 @@
 
 /* تحسين تجربة الموبايل عند الإغلاق */
 @media (max-width: 900px) {
-    .sidebar { width: 200px; } /* إعادة الحجم الطبيعي للموبايل ليكون مقروءاً عند الفتح */
-    .sidebar.closed { right: -250px !important; }
-    .main-content { margin-right: 0; width: 100%; } /* في الموبايل الوضع الافتراضي مغلق */
-}
+    .sidebar {
+        transform: translateX(100%);
+            .sidebar-brand, .nav-link span { display: none; }
+            .nav-link span, .sidebar-brand span { display: inline !important;
+             }
 
     </style>
 </head>
@@ -2700,6 +2769,8 @@ async function saveAppAccessCode() {
 }
 // --- دالة التحكم في القائمة (فتح/إغلاق) ---
 function toggleSidebar() {
+const body = document.body;
+    const isMobile = window.innerWidth <= 900;
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
     
