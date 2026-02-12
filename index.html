@@ -2703,7 +2703,11 @@ function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const mainContent = document.querySelector('.main-content');
     
+    // تبديل كلاس الإغلاق للقائمة
     sidebar.classList.toggle('closed');
+    
+    // تبديل كلاس التوسيع للمحتوى الرئيسي
+    mainContent.classList.toggle('expanded');
     
     // في الشاشات الكبيرة فقط نعدل هامش المحتوى
     if (window.innerWidth > 900) {
@@ -2718,7 +2722,7 @@ function toggleSidebar() {
 }
 
 // --- تنفيذ الإغلاق التلقائي (عند النقر خارج القائمة أو على رابط) ---
-document.addEventListener('click', function(event) {
+window.addEventListener('click', (event) => {
     const sidebar = document.querySelector('.sidebar');
     const toggleBtn = document.getElementById('toggle-sidebar-btn');
     const isMobile = window.innerWidth <= 900;
@@ -2729,13 +2733,14 @@ document.addEventListener('click', function(event) {
             toggleSidebar();
         }
     }
-
-    // 2. إغلاق القائمة عند النقر خارجها (في الموبايل فقط)
-    // الشرط: النقر ليس داخل القائمة، وليس على زر الفتح، والقائمة مفتوحة حالياً
-    if (isMobile && 
+   
+   
+   
+    // إذا كانت القائمة مفتوحة حالياً
+    // وكان مكان النقر ليس داخل القائمة وليس على زر الفتح
+    if (!sidebar.classList.contains('closed') && 
         !sidebar.contains(event.target) && 
-        !toggleBtn.contains(event.target) && 
-        !sidebar.classList.contains('closed')) {
+        !toggleBtn.contains(event.target)) {
         
         toggleSidebar();
     }
@@ -2765,6 +2770,15 @@ async function updateRealCount() {
     }
 }
 
+document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', () => {
+        const sidebar = document.querySelector('.sidebar');
+        // نغلق القائمة فقط إذا كانت مفتوحة (لا تملك كلاس closed)
+        if (!sidebar.classList.contains('closed')) {
+            toggleSidebar();
+        }
+    });
+});
 </script>
 </body>
 </html>
