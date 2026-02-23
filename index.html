@@ -329,6 +329,13 @@
         <span class="stat-label">بلا صور </span>
     </div>
     </div>
+    <div class="stat-card">
+    <i class="fas fa-user-check stat-icon" style="color:#8b5cf6; background:#f5f3ff;"></i>
+    <div>
+        <span class="stat-value" id="count-active-sellers">0</span>
+        <span class="stat-label">بائع نشط</span>
+    </div>
+</div>
     <section id="p-products" class="panel active">
         <div class="form-group">
             <label>بحث أو إضافة (كود المنتج)</label>
@@ -834,7 +841,16 @@
         <i class="fas fa-user-plus"></i> إنشاء حساب جديد
     </button>
 </div>
-
+<!-- شريط البحث عن اليوزرات (تم الإصلاح ليقبل العربية) -->
+<div style="margin-bottom: 15px; position: relative;">
+    <input type="search" 
+           id="searchSellerInput" 
+           oninput="filterSellers()" 
+           placeholder="🔍 ابحث باسم البائع..." 
+           style="width: 100%; padding: 10px 15px; border-radius: 50px; border: 1px solid #cbd5e1; 
+                  font-family: 'Cairo', sans-serif !important; direction: rtl; text-align: right;" 
+           autocomplete="off">
+</div>
     <!-- جدول البائعين -->
     <div style="overflow-x:auto;">
         <table style="width:100%; border-collapse: collapse; font-size:13px; text-align:center;">
@@ -2842,27 +2858,40 @@ document.querySelectorAll('.nav-link').forEach(link => {
 });
 
 // --- إدارة البائعين (Sellers System) ---
+// --- 1. دالة عرض البائعين (محدثة لحساب العدد) ---
+let allSellersData = []; // متغير لتخزين البيانات للبحث السريع
 
-// 1. جلب وعرض البائعين
 function loadSellers() {
     const tbody = document.getElementById('sellers-list-body');
+    const activeCountEl = document.getElementById('count-active-sellers'); // عنصر العداد
+    
     if(!tbody) return;
 
     db.collection('sellers_accounts').orderBy('createdAt', 'desc').onSnapshot(snap => {
         if(snap.empty) {
             tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;">لا يوجد بائعين مسجلين</td></tr>';
+            if(activeCountEl) activeCountEl.innerText = "0";
             return;
         }
 
-        tbody.innerHTML = snap.docs.map(doc => {
+        // 1. حساب عدد النشطين
+        let activeCount = 0;
+        
+        // 2. تخزين البيانات ورسم الجدول
+        const rowsHTML = snap.docs.map(doc => {
             const d = doc.data();
+            
+            // زيادة العداد إذا كان الحساب نشطاً
+            if (d.isActive) activeCount++;
+
             const statusColor = d.isActive ? '#10b981' : '#ef4444';
             const statusText = d.isActive ? 'نشط ✅' : 'محظور ⛔';
             const toggleBtnText = d.isActive ? 'حظر' : 'تفعيل';
             const toggleBtnColor = d.isActive ? '#f59e0b' : '#10b981';
 
+            // إضافة كلاس للبحث السهل
             return `
-            <tr style="border-bottom:1px solid #eee;">
+            <tr class="seller-row">
                 <td style="padding:10px;">${d.name}</td>
                 <td style="padding:10px; font-weight:bold; color:#1a73e8;">${d.username}</td>
                 <td style="padding:10px;">${d.branch}</td>
@@ -2878,7 +2907,36 @@ function loadSellers() {
                 </td>
             </tr>`;
         }).join('');
+
+        tbody.innerHTML = rowsHTML;
+        
+        // تحديث رقم الكارت في الأعلى
+        if(activeCountEl) {
+            // تأثير عداد بسيط
+            activeCountEl.innerText = activeCount;
+        }
+        
+        // إعادة تطبيق البحث إذا كان هناك نص مكتوب (عند التحديث التلقائي)
+        filterSellers();
     });
+}
+
+// --- 2. دالة البحث عن البائعين (الجديدة) ---
+function filterSellers() {
+    const input = document.getElementById('searchSellerInput');
+    const filter = input.value.toLowerCase();
+    const rows = document.getElementsByClassName('seller-row');
+
+    for (let i = 0; i < rows.length; i++) {
+        // نجمع النص الموجود في الصف بالكامل (الاسم + المستخدم + الفرع)
+        const rowText = rows[i].textContent || rows[i].innerText;
+        
+        if (rowText.toLowerCase().indexOf(filter) > -1) {
+            rows[i].style.display = ""; // إظهار
+        } else {
+            rows[i].style.display = "none"; // إخفاء
+        }
+    }
 }
 
 // 2. إضافة بائع جديد
