@@ -312,28 +312,31 @@
     <i class="fas fa-user-circle" style="font-size:16px;"></i> 
 </div>
     </div>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <i class="fas fa-database stat-icon" style="color:#1a73e8; background:#eff6ff;"></i>
-            <div><span class="stat-value" id="count-total">0</span><span class="stat-label">المنتجات</span></div>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-tags stat-icon" style="color:#10b981; background:#f0fdf4;"></i>
-            <div><span class="stat-value" id="count-cats">0</span><span class="stat-label">الأقسام</span></div>
-        </div>
-        <div class="stat-card clickable" onclick="filterNoImageProducts()" title="اضغط لعرض المنتجات التي بلا صور">
-    <i class="fas fa-image-slash stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
-    <div>
-	</div>
-        <span class="stat-value" id="count-no-img">0</span>
-        <span class="stat-label">بلا صور </span>
-    </div>
-    </div>
+   <div class="stats-grid">
     <div class="stat-card">
-    <i class="fas fa-user-check stat-icon" style="color:#8b5cf6; background:#f5f3ff;"></i>
-    <div>
-        <span class="stat-value" id="count-active-sellers">0</span>
-        <span class="stat-label">بائع نشط</span>
+        <i class="fas fa-database stat-icon" style="color:#1a73e8; background:#eff6ff;"></i>
+        <div><span class="stat-value" id="count-total">0</span><span class="stat-label">المنتجات</span></div>
+    </div>
+    
+    <div class="stat-card">
+        <i class="fas fa-tags stat-icon" style="color:#10b981; background:#f0fdf4;"></i>
+        <div><span class="stat-value" id="count-cats">0</span><span class="stat-label">الأقسام</span></div>
+    </div>
+        <div class="stat-card" style="position: relative;">
+        <i class="fas fa-signal stat-icon" style="color:#10b981; background:#ecfdf5;"></i>
+        <div>
+            <span class="stat-value" id="count-online-now">0</span>
+            <span class="stat-label">متواجد الآن</span>
+        </div>
+        <button onclick="trackOnlineUsers()" title="تحديث الحالة" 
+                style="position: absolute; left: 10px; top: 10px; background: none; border: none; color: #10b981; cursor: pointer; font-size: 12px;">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+
+    <div class="stat-card clickable" onclick="filterNoImageProducts()">
+        <i class="fas fa-image-slash stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
+        <div><span class="stat-value" id="count-no-img">0</span><span class="stat-label">بلا صور</span></div>
     </div>
 </div>
     <section id="p-products" class="panel active">
@@ -3068,8 +3071,29 @@ async function deleteSeller(id) {
     }
 }
 
-// تشغيل الدالة عند فتح الصفحة
-document.addEventListener("DOMContentLoaded", loadSellers);
+// --- دالة تتبع المتواجدين الآن ---
+async function trackOnlineUsers() {
+    const onlineCountEl = document.getElementById('count-online-now');
+    if(!onlineCountEl) return;
+
+    // أي مستخدم قام بنشاط خلال آخر 5 دقائق نعتبره "متواجد"
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+
+    try {
+        // مراقبة حية للمستخدمين النشطين
+        db.collection('sellers_accounts')
+          .where('lastSeen', '>=', fiveMinutesAgo)
+          .onSnapshot(snap => {
+              onlineCountEl.innerText = snap.size;
+              console.log("عدد المتواجدين المحدث: ", snap.size);
+          }, error => {
+              console.error("خطأ في مراقبة المتواجدين:", error);
+          });
+    } catch (e) {
+        console.error("Error tracking online users:", e);
+    }
+}
+
 </script>
 </body>
 </html>
