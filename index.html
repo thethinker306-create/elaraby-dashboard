@@ -333,12 +333,15 @@
             <i class="fas fa-sync-alt"></i>
         </button>
     </div>
+        </div>
 
-    <div class="stat-card clickable" onclick="filterNoImageProducts()">
-        <i class="fas fa-image-slash stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
-        <div><span class="stat-value" id="count-no-img">0</span><span class="stat-label">بلا صور</span></div>
-    </div>
+<!-- تم إضافة id="card-no-img" و style="display:none" -->
+<div id="card-no-img" class="stat-card clickable" onclick="filterNoImageProducts()" style="display:none;">
+    <i class="fas fa-image-slash stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
+    <div><span class="stat-value" id="count-no-img">0</span><span class="stat-label">بلا صور</span></div>
 </div>
+    </div>
+
     <section id="p-products" class="panel active">
         <div class="form-group">
             <label>بحث أو إضافة (كود المنتج)</label>
@@ -785,14 +788,6 @@
     <!-- قسم إدارة المستخدمين -->
     <section id="p-users" class="panel">
         <h3 style="border-bottom:1px solid #eee; padding-bottom:10px;">🛡️ إدارة صلاحيات المستخدمين</h3>
-            <div class="form-group" style="background:#e0f2fe; padding:15px; border-radius:8px; border:1px solid #bae6fd; margin-bottom: 20px;">
-        <label style="color:#0369a1; font-size:14px;"><i class="fas fa-key"></i> كود دخول صفحة البحث (للمندوبين)</label>
-        <div style="display:flex; gap:10px; margin-top:5px;">
-            <input type="text" id="appAccessCode" placeholder="مثال: 2026" style="flex:2; font-weight:bold; text-align:center; letter-spacing:2px;">
-            <button onclick="saveAppAccessCode()" class="btn btn-save" style="flex:1; background:#0284c7;">حفظ الكود الجديد</button>
-        </div>
-        <p style="font-size:10px; color:#555; margin-top:5px;">* هذا الكود سيطلبه الموقع من أي شخص يحاول الدخول لصفحة البحث.</p>
-    </div>
         <div class="form-group" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px dashed #cbd5e1;">
             <label style="color:var(--main-blue);">إضافة / تعديل صلاحية مستخدم</label>
             <div style="display:flex; gap:10px; margin-top:5px;">
@@ -962,23 +957,47 @@ let currentServerConfig = {};
 let lastVisibleProduct = null;
 const productsPerPage = 100;
 function loadInitialProducts() {
-    const listDiv = document.getElementById("suggestions");
-    console.log("جاري تحميل كافة المنتجات للبحث...");
-    // جلب البيانات
+    const countTotalEl = document.getElementById('count-total');
+    // إظهار مؤشر تحميل للمستخدم ليعرف أن النظام يعمل
+    if(countTotalEl) countTotalEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحميل...';
+
+    console.log("جاري تحميل قاعدة البيانات بالكامل...");
+
     db.collection("products")
-      .orderBy("updatedAt", "desc") // ترتيب بالأحدث
-      .limit(productsPerPage)
+      .orderBy("updatedAt", "desc")
+      // ⚠️ هام جداً: تم إزالة .limit() نهائياً لجلب كل المنتجات
       .get()
       .then((querySnapshot) => {
         localProducts = [];
-querySnapshot.forEach((doc) => {
+        querySnapshot.forEach((doc) => {
+            // تخزين البيانات في الذاكرة المحلية
             localProducts.push({ id: doc.id, ...doc.data() });
         });
-        lastVisibleProduct = querySnapshot.docs[querySnapshot.docs.length - 1];
-updateDashboardStats(); // يحدث باقي الإحصائيات (الأقسام والصور)
-        updateRealCount();      // ✅ (جديد) يحدث العدد الإجمالي من السيرفر
+
+        // تحديث الإحصائيات
+        updateDashboardStats(); 
         
-        console.log("تم تحميل البيانات");
+        // تحديث العداد بالرقم الحقيقي
+        if(countTotalEl) countTotalEl.innerText = localProducts.length;
+
+        console.log(`✅ تم تحميل ${localProducts.length} منتج في الذاكرة للبحث السريع`);
+        
+        // تنبيه صغير عند الانتهاء (اختياري)
+        const toastMixin = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000
+        });
+        toastMixin.fire({
+            icon: 'success',
+            title: 'تم تجهيز قائمة البحث'
+        });
+
+      })
+      .catch((error) => {
+          console.error("Error loading products: ", error);
+          if(countTotalEl) countTotalEl.innerText = "خطأ";
       });
 }
 
@@ -1058,28 +1077,70 @@ loadInitialProducts();
     }
 
     // --- وظائف المنتجات ---
-    function liveSearch(val) {
-        const sugBox = document.getElementById("suggestions");
-        const mBtn = document.getElementById("mainBtn");
-        sugBox.innerHTML = "";
-        if(!val) { sugBox.style.display = "none"; return; }
-        
-        const matches = localProducts.filter(p => p.id.toLowerCase().includes(val.toLowerCase()));
-        if(matches.length) {
-            sugBox.style.display = "block";
-            matches.forEach(p => {
-                const div = document.createElement("div");
-                div.className = "sug-item";
-                div.innerHTML = `<strong>${p.id}</strong> <span>${p.name || ''}</span>`;
-                div.onclick = () => fillForm(p);
-                sugBox.appendChild(div);
-            });
-        }
-        
-        const exist = localProducts.find(p => p.id.toLowerCase() === val.trim().toLowerCase());
-        mBtn.innerHTML = exist ? '<i class="fas fa-sync"></i> تحديث المنتج' : '<i class="fas fa-plus"></i> حفظ جديد';
-        mBtn.className = exist ? "btn btn-update" : "btn btn-save";
+function liveSearch(val) {
+    const sugBox = document.getElementById("suggestions");
+    const mBtn = document.getElementById("mainBtn");
+    
+    sugBox.innerHTML = "";
+    
+    // إذا كان الحقل فارغاً نخفي القائمة
+    if(!val) { 
+        sugBox.style.display = "none"; 
+        return; 
     }
+
+    const searchTerm = val.toLowerCase().trim();
+
+    // 1. البحث في الكود (ID) وفي الاسم (Name)
+    const matches = localProducts.filter(p => {
+        const idMatch = p.id.toLowerCase().includes(searchTerm);
+        const nameMatch = (p.name || "").toLowerCase().includes(searchTerm);
+        return idMatch || nameMatch;
+    });
+
+    // 2. عرض النتائج (بحد أقصى 50 نتيجة لمنع تهنيج المتصفح)
+    if(matches.length > 0) {
+        sugBox.style.display = "block";
+        
+        // نأخذ أول 50 نتيجة فقط
+        const limitedMatches = matches.slice(0, 50); 
+        
+        limitedMatches.forEach(p => {
+            const div = document.createElement("div");
+            div.className = "sug-item";
+            
+            // تمييز النص المكتوب (اختياري لجمال الشكل)
+            const displayName = p.name || 'بدون اسم';
+            
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; width:100%;">
+                    <span style="font-weight:bold; color:#1e293b;">${p.id}</span>
+                    <span style="color:#64748b; font-size:10px;">${displayName}</span>
+                </div>`;
+            
+            div.onclick = () => fillForm(p);
+            sugBox.appendChild(div);
+        });
+
+        // إذا كانت النتائج أكثر من 50، نضيف تنويهاً
+        if(matches.length > 50) {
+            const moreDiv = document.createElement("div");
+            moreDiv.style.padding = "5px";
+            moreDiv.style.textAlign = "center";
+            moreDiv.style.fontSize = "10px";
+            moreDiv.style.color = "#ef4444";
+            moreDiv.innerText = `يوجد ${matches.length - 50} منتج آخر... أكمل الكتابة لتخصيص البحث`;
+            sugBox.appendChild(moreDiv);
+        }
+    } else {
+        sugBox.style.display = "none";
+    }
+    
+    // 3. التحقق مما إذا كان المنتج المكتوب موجوداً بالضبط لتغيير زر الحفظ
+    const exist = localProducts.find(p => p.id.toLowerCase() === searchTerm);
+    mBtn.innerHTML = exist ? '<i class="fas fa-sync"></i> تحديث المنتج' : '<i class="fas fa-plus"></i> حفظ جديد';
+    mBtn.className = exist ? "btn btn-update" : "btn btn-save";
+}
 
     function fillForm(p) {
         document.getElementById("productId").value = p.id;
@@ -1461,12 +1522,33 @@ async function undoLastChange() {
         if (e.key === 'Enter') handlePopupLogin();
     });
 
-    function updateDashboardStats() {
-        document.getElementById('count-total').innerText = localProducts.length;
-        const cats = [...new Set(localProducts.map(p => p.category))];
-        document.getElementById('count-cats').innerText = cats.length;
-        document.getElementById('count-no-img').innerText = localProducts.filter(p => !p.images || p.images.length === 0).length;
+function updateDashboardStats() {
+    // 1. تحديث العدد الكلي
+    document.getElementById('count-total').innerText = localProducts.length;
+    
+    // 2. تحديث عدد الأقسام
+    const cats = [...new Set(localProducts.map(p => p.category))];
+    document.getElementById('count-cats').innerText = cats.length;
+    
+    // 3. حساب المنتجات التي بلا صور 
+    const noImgCount = localProducts.filter(p => !p.images || p.images.length === 0 || (p.images.length === 1 && p.images[0] === "")).length;
+    
+    // تحديث الرقم داخل الكارت
+    document.getElementById('count-no-img').innerText = noImgCount;
+
+    // 4. المنطق الجديد: إظهار/إخفاء الكارت بناءً على العدد
+    const noImgCard = document.getElementById('card-no-img');
+    if (noImgCard) {
+        if (noImgCount > 0) {
+            noImgCard.style.display = 'flex'; // إظهار الكارت
+            
+            // إضافة حركة بسيطة لجذب الانتباه (اختياري)
+            noImgCard.style.animation = "fadeInUp 0.5s ease";
+        } else {
+            noImgCard.style.display = 'none'; // إخفاء الكارت
+        }
     }
+}
 
     function showPanel(id, btn) {
         document.querySelectorAll('.panel, .nav-link').forEach(el => el.classList.remove('active'));
@@ -2282,7 +2364,7 @@ async function uploadColorImage(input) {
 if(headerEmail) headerEmail.innerText = user.email;
             
             if(headerRole) {
-
+trackOnlineUsers();
                 // 3. الدخول
                 overlay.style.display = 'none';
                 if(emailDisplay) emailDisplay.innerText = `${user.email} (${getRoleName(currentUserRole)})`;
@@ -2313,8 +2395,7 @@ overlay.style.display = 'flex';
         }
     });
 
-    // دالة تطبيق الصلاحيات (إخفاء/إظهار الأزرار) — تم التعديل لتمكين المشاهد من الوصول لتقارير المبيعات فقط
-   // ...existing code...
+    // دالة تطبيق الصلاحيات (إخفاء/إظهار الأزرار
 function applyPermissions(role) {
     // أخفِ كل عناصر القائمة أولاً
     document.querySelectorAll('.nav-menu li').forEach(li => li.style.display = 'none');
@@ -2345,9 +2426,21 @@ function applyPermissions(role) {
     }
     
     // إظهار أو إخفاء الألواح: اجعل لوحة التقارير نشطة افتراضياً
+    if (role === 'viewer') {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    
     const salesPanel = document.getElementById('p-sales-report');
+    const salesBtn = document.querySelector('button[onclick*="p-sales-report"]');
+    
     if (salesPanel) salesPanel.classList.add('active');
+    if (salesBtn) salesBtn.classList.add('active');
+} 
+// 2. إذا كان "مدير" (Admin) أو "محرر" (Editor) -> نفتح له المنتجات (الوضع الافتراضي)
+else {
+    // التأكد من أن لوحة المنتجات هي النشطة
+    showPanel('p-products', document.querySelector('button[onclick*="p-products"]'));
+}
 
     // أخفِ أزرار الحفظ/تعديل/حذف عامة مع استثناء الأزرار داخل تقارير المبيعات وداخل لوحة الأمان (تسجيل الخروج)
     document.querySelectorAll('.btn-save, .btn-update, .btn-red').forEach(b => {
@@ -2749,34 +2842,7 @@ function renderChart(canvasId, type, labels, data, label, colors) {
         }
     });
 }
-// === دوال إدارة كود دخول التطبيق === 
-db.collection("app_config").doc("access_control").onSnapshot(doc => {
-    if(doc.exists && doc.data().searchPageCode) {
-        const input = document.getElementById('appAccessCode');
-        if(input) input.value = doc.data().searchPageCode;
-    }
-});
 
-// حفظ الكود الجديد
-async function saveAppAccessCode() {
-    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
-    // التحقق من الصلاحية //
-    if(currentUserRole !== 'admin') return alert("للمدراء فقط");
-
-    const newCode = document.getElementById('appAccessCode').value.trim();
-    if(!newCode) return alert("الرجاء كتابة كود");
-
-    try {
-        await db.collection("app_config").doc("access_control").set({
-            searchPageCode: newCode,
-            updatedAt: Date.now(),
-            updatedBy: auth.currentUser.email
-        }, {merge: true});
-        alert("✅ تم تحديث كود الدخول بنجاح! سيتم تطبيقه فوراً على صفحة البحث.");
-    } catch(e) {
-        alert("خطأ: " + e.message);
-    }
-}
 // --- دالة التحكم في القائمة (فتح/إغلاق) ---
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
