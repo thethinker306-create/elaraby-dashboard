@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
+  <!-- مكتبة ضغط الصور الاحترافية -->
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- مكتبة DOMPurify لتنظيف النصوص من الأكواد الخبيثة -->
@@ -244,6 +246,89 @@
     .sidebar { width: 200px; }
     .sidebar.closed { right: -250px !important; }
     .main-content { margin-right: 0; width: 100%; } 
+}
+/* --- تنسيقات لوحة التحليلات الاحترافية --- */
+.analytics-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.kpi-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-card:hover { transform: translateY(-3px); }
+
+/* ألوان الخلفية الخفيفة للكروت */
+.kpi-card.purple { background: linear-gradient(135deg, #fff, #f3e8ff); border-right: 4px solid #a855f7; }
+.kpi-card.blue { background: linear-gradient(135deg, #fff, #e0f2fe); border-right: 4px solid #3b82f6; }
+.kpi-card.orange { background: linear-gradient(135deg, #fff, #ffedd5); border-right: 4px solid #f97316; }
+.kpi-card.green { background: linear-gradient(135deg, #fff, #dcfce7); border-right: 4px solid #22c55e; }
+
+.kpi-icon {
+    width: 45px; height: 45px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    background: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.kpi-card.purple .kpi-icon { color: #a855f7; }
+.kpi-card.blue .kpi-icon { color: #3b82f6; }
+.kpi-card.orange .kpi-icon { color: #f97316; }
+.kpi-card.green .kpi-icon { color: #22c55e; }
+
+.kpi-info span { font-size: 11px; color: #64748b; font-weight: bold; }
+.kpi-info h4 { margin: 5px 0 0; font-size: 18px; color: #1e293b; font-weight: 800; }
+
+.chart-container-large {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.charts-grid-secondary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.chart-box {
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.chart-title {
+    margin: 0 0 15px 0;
+    font-size: 13px;
+    color: #475569;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 8px;
+}
+/* تنسيق يمنع تمدد الرسم البياني */
+.chart-wrapper {
+    position: relative;
+    height: 300px; /* ارتفاع ثابت إجباري */
+    width: 100%;
+    overflow: hidden; /* قص أي زيادة */
 }
 
     </style>
@@ -745,44 +830,84 @@
         </div>
     </section>
 <section id="p-analytics" class="panel">
-    <h3 style="border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:20px;">
-        📈 لوحة تحليل البيانات (Analytics Dashboard)
-    </h3>
-    
-    <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
-        <button onclick="calculateAnalytics()" class="btn btn-save" style="width:auto;">
-            <i class="fas fa-sync"></i> تحديث التحليلات
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
+        <h3 style="margin:0; font-size:16px; color:var(--text-main);">
+            <i class="fas fa-chart-line"></i> لوحة تحليل المبيعات المتقدمة
+        </h3>
+        <button onclick="calculateAnalytics()" class="btn btn-save" style="width:auto; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);">
+            <i class="fas fa-sync-alt"></i> تحديث البيانات
         </button>
     </div>
 
-    <!-- شبكة الرسوم البيانية -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-        
+    <!-- 1. شريط البطاقات العلوية (KPIs) -->
+    <div class="analytics-kpi-grid">
+        <!-- كارت الإجمالي -->
+        <div class="kpi-card purple">
+            <div class="kpi-icon"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info">
+                <span>إجمالي الإيرادات</span>
+                <h4 id="kpi-revenue">0 ج.م</h4>
+            </div>
+        </div>
+        <!-- كارت عدد الطلبات -->
+        <div class="kpi-card blue">
+            <div class="kpi-icon"><i class="fas fa-shopping-basket"></i></div>
+            <div class="kpi-info">
+                <span>عدد العمليات</span>
+                <h4 id="kpi-count">0</h4>
+            </div>
+        </div>
+        <!-- كارت متوسط السلة -->
+        <div class="kpi-card orange">
+            <div class="kpi-icon"><i class="fas fa-percent"></i></div>
+            <div class="kpi-info">
+                <span>متوسط الطلب (AOV)</span>
+                <h4 id="kpi-avg">0 ج.م</h4>
+            </div>
+        </div>
+        <!-- كارت أفضل فرع -->
+        <div class="kpi-card green">
+            <div class="kpi-icon"><i class="fas fa-trophy"></i></div>
+            <div class="kpi-info">
+                <span>الفرع المتصدر</span>
+                <h4 id="kpi-top-branch">-</h4>
+            </div>
+        </div>
+    </div>
+<!-- 2. الرسم البياني الزمني (جديد) -->
+    <div class="chart-container-large">
+        <h5 class="chart-title">📈 نمو المبيعات (Timeline)</h5>
+        <!-- هنا التعديل: وضعنا الرسم داخل chart-wrapper -->
+        <div class="chart-wrapper">
+            <canvas id="salesTrendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 3. شبكة الرسوم البيانية الأخرى -->
+    <div class="charts-grid-secondary">
         <!-- مبيعات الفروع -->
-        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-            <h4 style="text-align:center; color:#1e293b; margin-bottom:15px;">🏆 الفروع الأكثر مبيعاً (بالقيمة)</h4>
-            <canvas id="branchChart"></canvas>
+        <div class="chart-box">
+            <h5 class="chart-title">🏆 أداء الفروع</h5>
+            <div class="chart-wrapper" style="height: 250px;"> <!-- ارتفاع أصغر للكروت الجانبية -->
+                <canvas id="branchChart"></canvas>
+            </div>
         </div>
 
         <!-- المنتجات الأكثر طلباً -->
-        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-            <h4 style="text-align:center; color:#10b981; margin-bottom:15px;">🔥 أكثر 5 منتجات مبيعاً</h4>
-            <canvas id="topProductsChart"></canvas>
-        </div>
-
-        <!-- المنتجات الأقل طلباً -->
-        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #e2e8f0; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-            <h4 style="text-align:center; color:#ef4444; margin-bottom:15px;">💤 أقل 5 منتجات مبيعاً</h4>
-            <canvas id="lowProductsChart"></canvas>
+        <div class="chart-box">
+            <h5 class="chart-title">🔥 المنتجات الأكثر مبيعاً</h5>
+            <div class="chart-wrapper" style="height: 250px;">
+                <canvas id="topProductsChart"></canvas>
+            </div>
         </div>
         
-         <!-- إحصائية سريعة -->
-        <div style="background:linear-gradient(135deg, #1a73e8, #0d47a1); color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
-            <div style="font-size:40px;"><i class="fas fa-coins"></i></div>
-            <div style="font-size:14px; opacity:0.8;">إجمالي إيرادات النظام</div>
-            <div id="total-revenue-analytics" style="font-size:24px; font-weight:bold; margin-top:10px;">0 ج.م</div>
+        <!-- المنتجات الأقل طلباً -->
+        <div class="chart-box">
+            <h5 class="chart-title">💤 المنتجات الأقل دوراناً</h5>
+            <div class="chart-wrapper" style="height: 250px;">
+                <canvas id="lowProductsChart"></canvas>
+            </div>
         </div>
-
     </div>
 </section>
     <!-- قسم إدارة المستخدمين -->
@@ -1181,6 +1306,8 @@ function liveSearch(val) {
             }
         });
     }
+    
+    
     function popImg(i) { let arr = document.getElementById("images").value.split(","); arr.splice(i, 1); document.getElementById("images").value = arr.join(","); syncPreviews(); }
 
     function syncVideo() {
@@ -2193,9 +2320,31 @@ async function uploadBulkProducts(data) {
         const dateStr = new Date().toISOString().slice(0,10);
         XLSX.writeFile(wb, `Elaraby_Products_Backup_${dateStr}.xlsx`);
     }
-// ☁️ إعدادات Cloudinary (يجب تعديلها)// ==========================================
-// ☁️ دالة الرفع على Cloudinary
-// ==========================================
+
+// ===========================
+// 🗜️ منظومة ضغط الصور الاحترافية
+// ===========================
+async function compressImageFile(imageFile) {
+    console.log(`حجم الملف الأصلي: ${imageFile.size / 1024 / 1024} MB`);
+
+    const options = {
+        maxSizeMB: 0.5,          // الحجم الأقصى المستهدف (نص ميجا = 500 كيلوبايت)
+        maxWidthOrHeight: 1280,  // أقصى أبعاد (1280px ممتازة للمتاجر)
+        useWebWorker: true,      // استخدام المعالجة المتوازية للسرعة
+        fileType: "image/jpeg"   // تحويل الكل لـ JPEG لتقليل الحجم (إلا لو كانت PNG شفافة)
+    };
+
+    try {
+        const compressedFile = await imageCompression(imageFile, options);
+        console.log(`حجم الملف المضغوط: ${compressedFile.size / 1024 / 1024} MB`);
+        return compressedFile;
+    } catch (error) {
+        console.error("فشل الضغط، سيتم رفع الملف الأصلي:", error);
+        return imageFile; // في حالة الفشل نرفع الملف الأصلي
+    }
+}
+
+// ☁️ دالة رفع صور المنتجات (مع الضغط)
 async function uploadImageToCloudinary(input) {
     const file = input.files[0];
     if (!file) return;
@@ -2205,20 +2354,28 @@ async function uploadImageToCloudinary(input) {
     const uploadPreset = "elaraby_broducts"; 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
-    // عناصر الواجهة
     const statusDiv = document.getElementById("cl-upload-status");
     const textArea = document.getElementById("images");
 
-    // عرض حالة "جاري الرفع"
+    // 1. مرحلة الضغط
     statusDiv.style.display = "block";
-    statusDiv.style.color = "#e91e63"; // لون وردي
-    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري رفع الصورة...';
+    statusDiv.style.color = "#f59e0b"; // لون برتقالي
+    statusDiv.innerHTML = '<i class="fas fa-compress-arrows-alt fa-pulse"></i> جاري ضغط الصورة لتقليل الحجم...';
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
-
+    let fileToUpload = file;
+    
     try {
+        // تنفيذ الضغط
+        fileToUpload = await compressImageFile(file);
+        
+        // 2. مرحلة الرفع
+        statusDiv.style.color = "#e91e63"; // لون وردي
+        statusDiv.innerHTML = '<i class="fas fa-cloud-upload-alt fa-pulse"></i> جاري الرفع للسيرفر...';
+
+        const formData = new FormData();
+        formData.append("file", fileToUpload);
+        formData.append("upload_preset", uploadPreset);
+
         const response = await fetch(uploadUrl, {
             method: "POST",
             body: formData
@@ -2227,7 +2384,6 @@ async function uploadImageToCloudinary(input) {
         const data = await response.json();
 
         if (data.secure_url) {
-            // إضافة الرابط للمربع (مع وضع فاصلة إذا كان هناك صور سابقة)
             const currentText = textArea.value.trim();
             if (currentText.length > 0) {
                 textArea.value = currentText + "," + data.secure_url;
@@ -2235,14 +2391,10 @@ async function uploadImageToCloudinary(input) {
                 textArea.value = data.secure_url;
             }
 
-            // تحديث المعاينة فوراً
             syncPreviews();
 
-            // رسالة نجاح
             statusDiv.style.color = "green";
             statusDiv.innerHTML = '✅ تم الرفع بنجاح!';
-            
-            // إخفاء الرسالة بعد ثانيتين
             setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
         } else {
             throw new Error(data.error ? data.error.message : "فشل الرفع");
@@ -2253,36 +2405,41 @@ async function uploadImageToCloudinary(input) {
         statusDiv.style.color = "red";
         statusDiv.innerHTML = '❌ خطأ: ' + error.message;
     } finally {
-        // تفريغ ملف الإدخال للسماح برفع نفس الملف مرة أخرى إذا لزم الأمر
         input.value = "";
     }
 }
-// ==========================================
-// ☁️ دالة رفع صورة لون المنتج (الجديدة)
-// ==========================================
+
+// ☁️ دالة رفع صور الألوان (مع الضغط)
 async function uploadColorImage(input) {
     const file = input.files[0];
     if (!file) return;
 
-    // إعدادات حسابك (نفس المستخدمة في الصور الرئيسية)
     const cloudName = "dkuow8vxw"; 
     const uploadPreset = "elaraby_broducts"; 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
-    // عناصر الواجهة
     const statusDiv = document.getElementById("color-upload-status");
     const urlInput = document.getElementById("cImg");
 
-    // عرض حالة "جاري الرفع"
+    // 1. مرحلة الضغط
     statusDiv.style.display = "block";
-    statusDiv.style.color = "#e91e63"; 
-    statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري رفع صورة اللون...';
+    statusDiv.style.color = "#f59e0b";
+    statusDiv.innerHTML = '<i class="fas fa-compress-arrows-alt fa-pulse"></i> جاري الضغط...';
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
+    let fileToUpload = file;
 
     try {
+        // تنفيذ الضغط
+        fileToUpload = await compressImageFile(file);
+
+        // 2. مرحلة الرفع
+        statusDiv.style.color = "#e91e63";
+        statusDiv.innerHTML = '<i class="fas fa-cloud-upload-alt fa-pulse"></i> جاري الرفع...';
+
+        const formData = new FormData();
+        formData.append("file", fileToUpload);
+        formData.append("upload_preset", uploadPreset);
+
         const response = await fetch(uploadUrl, {
             method: "POST",
             body: formData
@@ -2291,14 +2448,9 @@ async function uploadColorImage(input) {
         const data = await response.json();
 
         if (data.secure_url) {
-            // وضع الرابط في حقل صورة اللون
             urlInput.value = data.secure_url;
-
-            // رسالة نجاح
             statusDiv.style.color = "green";
-            statusDiv.innerHTML = '✅ تم الرفع! اضغط "إضافة" لحفظ اللون.';
-            
-            // إخفاء الرسالة بعد 3 ثواني
+            statusDiv.innerHTML = '✅ تم الرفع!';
             setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
         } else {
             throw new Error(data.error ? data.error.message : "فشل الرفع");
@@ -2309,7 +2461,7 @@ async function uploadColorImage(input) {
         statusDiv.style.color = "red";
         statusDiv.innerHTML = '❌ خطأ: ' + error.message;
     } finally {
-        input.value = ""; // تفريغ الملف للسماح برفع آخر
+        input.value = "";
     }
 }
     // 🛡️ نظام الصلاحيات المحدث
@@ -2763,82 +2915,151 @@ db.collection("app_config").doc("notifications").onSnapshot(doc => {
 let charts = {}; 
 
 async function calculateAnalytics() {
-    // 1. جلب البيانات
- const snap = await db.collection('sales_transactions')
-                         .orderBy('createdAt', 'desc')
-                         .limit(500) // حد أقصى 500 عملية لعدم تهنيج المتصفح
-                         .get();
+    // 1. جلب البيانات (آخر 500 عملية)
+    // نستخدم مؤشر تحميل بسيط
+    const btn = document.querySelector('button[onclick="calculateAnalytics()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحليل...';
+    btn.disabled = true;
 
-    if (snap.empty) return alert("لا توجد بيانات");
+    try {
+        const snap = await db.collection('sales_transactions')
+                             .orderBy('createdAt', 'desc') // يجب أن يكون لديك حقل createdAt كرقم زمني، أو استخدم التاريخ
+                             .limit(500)
+                             .get();
 
-    const data = snap.docs.map(d => d.data());
-    
+        if (snap.empty) {
+            alert("لا توجد بيانات مبيعات لتحليلها.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+        }
 
-    // 2. معالجة البيانات
-    let branchSales = {};
-    let productCounts = {};
-    let totalRevenue = 0;
+        const data = snap.docs.map(d => d.data());
 
-    data.forEach(item => {
-        const price = Number(item.price) || 0;
-        const branch = item.branch || "غير محدد";
-        const product = item.product || "منتج مجهول";
+        // 2. متغيرات التحليل
+        let totalRevenue = 0;
+        let branchSales = {};
+        let productCounts = {};
+        let dateSales = {}; // لتخزين المبيعات حسب التاريخ
 
-        // تجميع الفروع
-        branchSales[branch] = (branchSales[branch] || 0) + price;
+        data.forEach(item => {
+            const price = Number(item.price) || 0;
+            const branch = item.branch || "غير محدد";
+            const product = item.product || "منتج مجهول";
+            // استخراج التاريخ فقط (بدون الوقت) للتجميع
+            const dateKey = item.date ? item.date.split(" ")[0] : "غير مؤرخ"; 
+
+            // تجميع الإجماليات
+            totalRevenue += price;
+            branchSales[branch] = (branchSales[branch] || 0) + price;
+            productCounts[product] = (productCounts[product] || 0) + 1;
+            
+            // تجميع حسب التاريخ (للشارت الخطي)
+            dateSales[dateKey] = (dateSales[dateKey] || 0) + price;
+        });
+
+        // 3. تحديث بطاقات KPI العلوية
+        document.getElementById('kpi-revenue').innerText = totalRevenue.toLocaleString() + " ج.م";
+        document.getElementById('kpi-count').innerText = data.length;
         
-        // تجميع المنتجات (بالعدد)
-        productCounts[product] = (productCounts[product] || 0) + 1;
+        // حساب متوسط السلة (AOV)
+        const avgOrder = totalRevenue / (data.length || 1);
+        document.getElementById('kpi-avg').innerText = Math.floor(avgOrder).toLocaleString() + " ج.م";
 
-        totalRevenue += price;
-    });
+        // حساب أفضل فرع
+        const sortedBranches = Object.entries(branchSales).sort((a, b) => b[1] - a[1]);
+        const topBranchName = sortedBranches.length > 0 ? sortedBranches[0][0] : "-";
+        document.getElementById('kpi-top-branch').innerText = topBranchName;
 
-    // تحديث رقم الإجمالي
-    document.getElementById('total-revenue-analytics').innerText = totalRevenue.toLocaleString() + " ج.م";
+        // 4. تجهيز البيانات للرسوم البيانية
+        
+        // أ) رسم بياني زمني (Trend Line) - نحتاج لترتيب التواريخ
+        const sortedDates = Object.keys(dateSales).sort(); // ترتيب تصاعدي
+        // نأخذ آخر 15 تاريخ فقط لعدم زحمة الرسم
+        const recentDates = sortedDates.slice(-15); 
+        const recentSales = recentDates.map(d => dateSales[d]);
 
-    // 3. تجهيز البيانات للرسم
-    // الفروع
-    const branchLabels = Object.keys(branchSales);
-    const branchData = Object.values(branchSales);
+        // ب) أفضل المنتجات وأقلها
+        const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
+        const top5 = sortedProducts.slice(0, 5);
+        const low5 = sortedProducts.slice(-5).reverse();
 
-    // المنتجات (ترتيب تنازلي للأكثر مبيعاً)
-    const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
-    
-    // أعلى 5
-    const top5 = sortedProducts.slice(0, 5);
-    // أقل 5 (نأخذ من النهاية ونعكس الترتيب)
-    const low5 = sortedProducts.slice(-5).reverse();
+        // 5. الرسم باستخدام Chart.js
+        
+        // رسم الخط الزمني (جديد)
+        renderChart('salesTrendChart', 'line', recentDates, recentSales, 'المبيعات اليومية', 
+            ['rgba(59, 130, 246, 0.2)'], // خلفية
+            '#3b82f6' // لون الخط
+        );
 
-    // 4. رسم الجرافات (Charts)
-    renderChart('branchChart', 'bar', branchLabels, branchData, 'مبيعات الفروع (جنية)', ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']);
-    renderChart('topProductsChart', 'doughnut', top5.map(i=>i[0]), top5.map(i=>i[1]), 'عدد المبيعات', ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5']);
-    renderChart('lowProductsChart', 'pie', low5.map(i=>i[0]), low5.map(i=>i[1]), 'عدد المبيعات', ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2']);
+        // رسم الفروع (Bar)
+        renderChart('branchChart', 'bar', Object.keys(branchSales), Object.values(branchSales), 'إيرادات الفروع', 
+            ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe']
+        );
+
+        // رسم أفضل المنتجات (Doughnut)
+        renderChart('topProductsChart', 'doughnut', top5.map(i=>i[0]), top5.map(i=>i[1]), 'عدد القطع', 
+            ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5']
+        );
+
+        // رسم أقل المنتجات (Pie)
+        renderChart('lowProductsChart', 'pie', low5.map(i=>i[0]), low5.map(i=>i[1]), 'عدد القطع', 
+            ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2']
+        );
+
+    } catch(e) {
+        console.error(e);
+        alert("خطأ في التحليل: " + e.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
-// دالة مساعدة لإنشاء الرسم وتدمير القديم
-function renderChart(canvasId, type, labels, data, label, colors) {
+// دالة الرسم المحسنة (تدعم الخط Line Chart وتعبئة الألوان)
+function renderChart(canvasId, type, labels, data, label, bgColors, borderColor = null) {
     const ctx = document.getElementById(canvasId).getContext('2d');
     
+    // تدمير الشارت القديم لمنع التداخل
     if (charts[canvasId]) {
-        charts[canvasId].destroy(); // تدمير الرسم القديم لتجنب التداخل
+        charts[canvasId].destroy();
+    }
+
+    // إعدادات خاصة للشارت الخطي (Line)
+    let datasetConfig = {
+        label: label,
+        data: data,
+        backgroundColor: bgColors,
+        borderWidth: 1
+    };
+
+    if (type === 'line') {
+        datasetConfig.borderColor = borderColor;
+        datasetConfig.fill = true; // ملء المنطقة تحت الخط
+        datasetConfig.tension = 0.4; // جعل الخط منحنياً وناعماً
+        datasetConfig.borderWidth = 3;
     }
 
     charts[canvasId] = new Chart(ctx, {
         type: type,
         data: {
             labels: labels,
-            datasets: [{
-                label: label,
-                data: data,
-                backgroundColor: colors,
-                borderWidth: 1
-            }]
+            datasets: [datasetConfig]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false, // لملء الحاوية
             plugins: {
-                legend: { position: 'bottom' }
-            }
+                legend: { 
+                    position: 'bottom',
+                    labels: { font: { family: "'Cairo', sans-serif" } }
+                }
+            },
+            scales: type === 'line' || type === 'bar' ? {
+                y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                x: { grid: { display: false } }
+            } : {}
         }
     });
 }
