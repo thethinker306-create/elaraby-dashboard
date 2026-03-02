@@ -560,58 +560,87 @@
         <button onclick="sendNotification()" class="btn btn-update" style="width:100%; margin-top:10px;">تحديث</button>
     </section>
 
-    <section id="p-ads" class="panel">
-        <h3 style="margin:0 0 15px 0; font-size:14px; border-bottom:1px solid #eee; padding-bottom:10px;">
-            📢 مدير الإعلانات المتقدم (AdSense & Popups)
+<!-- 2. Ads System (Multi-Ads) -->
+<section id="p-ads" class="panel">
+        <h3 style="border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px; color:var(--main-blue);">
+            📢 مدير الحملات الإعلانية (Multi-Ads)
         </h3>
         
-        <div class="form-group">
-            <label>نوع المحتوى</label>
-            <select id="adSourceType" onchange="toggleAdInputs()" style="background:#f0f9ff; border:1px solid #bae6fd;">
-                <option value="image">صورة (Banner Image)</option>
-                <option value="code">كود برمجي (AdSense / HTML)</option>
-            </select>
-        </div>
-
-        <div id="input-image-group">
-            <div class="form-group"><label>رابط الصورة</label><input type="text" id="adImg" placeholder="https://..."></div>
-            <div class="form-group"><label>رابط التوجيه (عند النقر)</label><input type="text" id="adLink" placeholder="https://..."></div>
-        </div>
-
-        <div id="input-code-group" style="display:none;">
-            <div class="form-group full-width">
-                <label>كود الإعلان (HTML / Script)</label>
-                <textarea id="adHtmlCode" rows="4" placeholder="ضع كود AdSense أو HTML هنا..." style="direction:ltr; font-family:monospace;"></textarea>
+        <!-- نموذج إضافة إعلان جديد -->
+        <div style="background:#f8fafc; padding:15px; border-radius:10px; border:1px dashed #cbd5e1; margin-bottom:20px;">
+            <h4 style="margin-top:0; font-size:13px; color:#475569;">➕ إضافة إعلان جديد</h4>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>اسم الحملة (للتمييز فقط)</label>
+                    <input type="text" id="adLabel" placeholder="مثال: عرض رمضان - بانر علوي">
+                </div>
+                <div class="form-group">
+                    <label>مكان العرض</label>
+                    <select id="adPosition">
+                        <option value="popup">نافذة منبثقة (Popup)</option>
+                        <option value="top_bar">شريط علوي (Top Banner)</option>
+                        <option value="below_search">أسفل البحث (Below Search)</option>
+                        <option value="footer">أسفل الموقع (Footer)</option>
+                        <option value="floating_bottom">عائم أسفل الشاشة</option>
+                    </select>
+                </div>
             </div>
-        </div>
 
-        <div class="form-grid">
             <div class="form-group">
-                <label>مكان الظهور</label>
-                <select id="adPosition" onchange="toggleTimerInput()">
-                    <option value="popup">نافظة منبثقة (Popup)</option>
-                    <option value="top_bar">شريط علوي (Top Bar)</option>
-                    <option value="below_search">أسفل البحث (Below Search)</option>
-                    <option value="footer">أسفل الموقع (Footer)</option>
+                <label>نوع المحتوى</label>
+                <select id="adSourceType" onchange="toggleAdInputs()" style="background:#f0f9ff; border:1px solid #bae6fd;">
+                    <option value="image">صورة (Banner Image)</option>
+                    <option value="code">كود برمجي (AdSense / HTML)</option>
                 </select>
             </div>
             
-            <div class="form-group" id="timer-group">
-                <label>إغلاق تلقائي بعد (ثانية)</label>
-                <input type="number" id="adTimer" placeholder="0 = لا يغلق" value="0">
+            <!-- خيارات الصورة -->
+            <div id="input-image-group">
+                <div class="form-group">
+                    <label>رابط الصورة</label>
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="adImg" placeholder="https://..." style="flex:1;">
+                        <!-- زر رفع صورة للإعلان -->
+                        <input type="file" id="adImgUpload" accept="image/*" style="display:none;" onchange="uploadAdImage(this)">
+                        <button onclick="document.getElementById('adImgUpload').click()" class="btn" style="background:#e91e63; width:auto;">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </button>
+                    </div>
+                    <div id="ad-upload-status" style="font-size:10px; font-weight:bold; margin-top:2px; display:none;"></div>
+                </div>
+                <div class="form-group"><label>رابط التوجيه (Link)</label><input type="text" id="adLink" placeholder="https://..."></div>
             </div>
 
-            <div class="form-group">
-                <label>الحالة</label>
-                <select id="adStatus">
-                    <option value="true">تفعيل</option>
-                    <option value="false">إيقاف</option>
-                </select>
+            <!-- خيارات الكود -->
+            <div id="input-code-group" style="display:none;">
+                <div class="form-group full-width">
+                    <label>كود الإعلان (HTML / Script)</label>
+                    <textarea id="adHtmlCode" rows="3" placeholder="ضع كود AdSense أو HTML هنا..." style="direction:ltr; font-family:monospace;"></textarea>
+                </div>
             </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>مؤقت (للبوب اب فقط - ثواني)</label>
+                    <input type="number" id="adTimer" value="0" placeholder="0 = لا يغلق تلقائياً">
+                </div>
+                <div class="form-group">
+                    <label>الأولوية (الرقم الأكبر يظهر أولاً)</label>
+                    <input type="number" id="adPriority" value="1">
+                </div>
+            </div>
+            
+            <button onclick="publishNewAd()" class="btn btn-save" style="margin-top:10px; width:100%;">
+                <i class="fas fa-plus-circle"></i> نشر الإعلان
+            </button>
         </div>
-    <button onclick="updateAds()" class="btn btn-save" style="width:100%; margin-top:15px;">
-            <i class="fas fa-rocket"></i> تحديث ونشر الإعدادات
-        </button>
+        
+        <!-- قائمة الإعلانات النشطة -->
+        <h4 style="margin:0 0 10px 0; font-size:14px; border-bottom:1px solid #eee; padding-bottom:5px;">📋 الإعلانات الحالية</h4>
+        <div id="ads-list-container" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="text-align:center; padding:10px; color:#777;">جاري التحميل...</div>
+        </div>
     </section>
 
     <section id="p-appearance-pro" class="panel">
@@ -3381,6 +3410,247 @@ async function trackOnlineUsers() {
     }
 }
 
+// ==========================================
+    // 📢 نظام الإعلانات المتعدد (Multi-Ads System)
+    // ==========================================
+
+    // 1. التحكم في ظهور الحقول
+    function toggleAdInputs() {
+        const type = document.getElementById('adSourceType').value;
+        document.getElementById('input-image-group').style.display = (type === 'image') ? 'block' : 'none';
+        document.getElementById('input-code-group').style.display = (type === 'code') ? 'block' : 'none';
+    }
+
+// ☁️ دالة رفع صور الإعلانات (مصححة)
+async function uploadAdImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // عناصر الواجهة
+    const statusDiv = document.getElementById("ad-upload-status");
+    const urlInput = document.getElementById("adImg");
+
+    // إعدادات Cloudinary الخاصة بك (نفس الموجودة في المنتجات)
+    const cloudName = "dkuow8vxw"; 
+    const uploadPreset = "elaraby_broducts"; 
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+    // 1. بداية العملية
+    statusDiv.style.display = "block";
+    statusDiv.style.color = "#f59e0b"; // برتقالي
+    statusDiv.innerHTML = '<i class="fas fa-compress-arrows-alt fa-pulse"></i> جاري المعالجة والرفع...';
+
+    let fileToUpload = file;
+
+    try {
+        // محاولة ضغط الصورة أولاً (إذا كانت دالة الضغط موجودة)
+        if (typeof compressImageFile === 'function') {
+            try {
+                fileToUpload = await compressImageFile(file);
+            } catch (err) {
+                console.warn("فشل الضغط، سيتم رفع الملف الأصلي");
+            }
+        }
+
+        // 2. الرفع إلى السيرفر
+        const formData = new FormData();
+        formData.append("file", fileToUpload);
+        formData.append("upload_preset", uploadPreset);
+
+        const response = await fetch(uploadUrl, {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.secure_url) {
+            // ✅ نجاح: وضع الرابط في حقل الإعلان
+            urlInput.value = data.secure_url;
+            
+            statusDiv.style.color = "green";
+            statusDiv.innerHTML = '✅ تم الرفع بنجاح!';
+            
+            // إخفاء الحالة بعد ثانتين
+            setTimeout(() => { statusDiv.style.display = "none"; }, 2000);
+        } else {
+            throw new Error(data.error ? data.error.message : "فشل الرفع");
+        }
+
+    } catch (error) {
+        console.error("Ad Upload Error:", error);
+        statusDiv.style.color = "red";
+        statusDiv.innerHTML = '❌ خطأ: ' + error.message;
+    } finally {
+        // تفريغ المدخل للسماح برفع نفس الملف مجدداً إذا لزم الأمر
+        input.value = "";
+    }
+}
+    // 4. جلب وعرض الإعلانات
+    db.collection("ads_campaigns").orderBy("createdAt", "desc").onSnapshot(snap => {
+        const container = document.getElementById("ads-list-container");
+        if(!container) return; // حماية
+        
+        if(snap.empty) {
+            container.innerHTML = '<div style="text-align:center; color:#999;">لا توجد إعلانات حالياً</div>';
+            return;
+        }
+
+        container.innerHTML = "";
+        snap.forEach(doc => {
+            const ad = doc.data();
+            const typeLabel = ad.sourceType === 'image' ? '🖼 صورة' : '💻 كود';
+            const statusColor = ad.isActive ? '#10b981' : '#cbd5e1';
+            
+            container.innerHTML += `
+            <div style="background:#fff; padding:10px; border-radius:8px; border:1px solid #e2e8f0; border-right:4px solid ${statusColor}; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-weight:bold; color:#1e293b;">${ad.label}</div>
+                    <div style="font-size:11px; color:#64748b;">
+                        <span style="background:#eff6ff; padding:2px 6px; border-radius:4px;">${typeLabel}</span>
+                        • مكان: <b>${translatePosition(ad.position)}</b>
+                        ${ad.isActive ? '<span style="color:green; font-weight:bold;">(نشط)</span>' : '<span style="color:gray;">(متوقف)</span>'}
+                    </div>
+                </div>
+                <div style="display:flex; gap:5px;">
+                    <button onclick="toggleAdState('${doc.id}', ${!ad.isActive})" class="btn" style="background:${ad.isActive ? '#f59e0b' : '#10b981'}; width:auto; padding:5px 10px;">
+                        ${ad.isActive ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>'}
+                    </button>
+                    <button onclick="deleteAd('${doc.id}')" class="btn btn-red" style="width:auto; padding:5px 10px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+        });
+    });
+
+    function translatePosition(pos) {
+        const dict = {
+            'popup': 'نافذة منبثقة',
+            'top_bar': 'شريط علوي',
+            'below_search': 'أسفل البحث',
+            'footer': 'الفوتر',
+            'floating_bottom': 'عائم أسفل'
+        };
+        return dict[pos] || pos;
+    }
+
+    // 5. تعديل الحالة والحذف
+    async function toggleAdState(id, newState) {
+        await db.collection("ads_campaigns").doc(id).update({ isActive: newState });
+    }
+
+    async function deleteAd(id) {
+        if(confirm("هل أنت متأكد من حذف هذا الإعلان نهائياً؟")) {
+            await db.collection("ads_campaigns").doc(id).delete();
+        }
+    }
+    
+    // 📢 دالة نشر الإعلان (مصححة ومحمية من الأخطاء)
+async function publishNewAd() {
+    console.log("بدء عملية النشر..."); // للتأكد من أن الزر يعمل
+
+    // 1. التحقق من تسجيل الدخول
+    if (!auth.currentUser) {
+        alert("⛔ يجب تسجيل الدخول أولاً للتمكن من النشر!");
+        return;
+    }
+
+    // 2. جلب العناصر (مع التأكد من وجودها لتجنب توقف الكود)
+    const labelEl = document.getElementById('adLabel');
+    const posEl = document.getElementById('adPosition');
+    const typeEl = document.getElementById('adSourceType');
+    const imgEl = document.getElementById('adImg');
+    const linkEl = document.getElementById('adLink');
+    const codeEl = document.getElementById('adHtmlCode');
+    const timerEl = document.getElementById('adTimer');
+    const priorityEl = document.getElementById('adPriority');
+
+    // حماية: إذا كان أحد العناصر الأساسية غير موجود في HTML
+    if (!labelEl || !posEl || !typeEl) {
+        alert("❌ خطأ برمجي: بعض حقول الإدخال غير موجودة في الصفحة. تأكد من كود HTML.");
+        return;
+    }
+
+    // 3. استخراج القيم
+    const label = labelEl.value.trim();
+    const position = posEl.value;
+    const type = typeEl.value;
+    const img = imgEl ? imgEl.value.trim() : "";
+    const link = linkEl ? linkEl.value.trim() : "";
+    const htmlCode = codeEl ? codeEl.value.trim() : "";
+    const timer = parseInt(timerEl ? timerEl.value : 0) || 0;
+    const priority = parseInt(priorityEl ? priorityEl.value : 1) || 1;
+
+    // 4. التحقق من صحة البيانات (Validation)
+    if (!label) {
+        alert("⚠️ يرجى كتابة اسم للحملة لتمييزها.");
+        labelEl.focus();
+        return;
+    }
+
+    if (type === 'image' && !img) {
+        alert("⚠️ لقد اخترت نوع 'صورة'، يرجى رفع صورة أو وضع الرابط.");
+        if(imgEl) imgEl.focus();
+        return;
+    }
+
+    if (type === 'code' && !htmlCode) {
+        alert("⚠️ لقد اخترت نوع 'كود'، يرجى وضع كود HTML/AdSense.");
+        if(codeEl) codeEl.focus();
+        return;
+    }
+
+    // 5. تأثير التحميل على الزر
+    const btn = document.querySelector("button[onclick='publishNewAd()']");
+    const originalBtnText = btn ? btn.innerHTML : "نشر الإعلان";
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري النشر...';
+        btn.disabled = true;
+    }
+
+    // 6. إرسال البيانات إلى Firebase
+    try {
+        await db.collection("ads_campaigns").add({
+            label: label,
+            position: position,
+            sourceType: type,
+            img: img,
+            link: link,
+            htmlCode: htmlCode,
+            timer: timer,
+            priority: priority,
+            isActive: true, // تفعيل تلقائي عند النشر
+            createdAt: Date.now(),
+            createdBy: auth.currentUser.email
+        });
+
+        // نجاح
+        Swal.fire({
+            icon: 'success',
+            title: 'تم النشر!',
+            text: 'تمت إضافة الحملة الإعلانية بنجاح وتفعيلها.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        // تفريغ الحقول
+        labelEl.value = "";
+        if(imgEl) imgEl.value = "";
+        if(linkEl) linkEl.value = "";
+        if(codeEl) codeEl.value = "";
+
+    } catch (e) {
+        console.error("خطأ في النشر:", e);
+        alert("❌ حدث خطأ أثناء الحفظ في قاعدة البيانات:\n" + e.message);
+    } finally {
+        // إعادة الزر لحالته الطبيعية
+        if (btn) {
+            btn.innerHTML = originalBtnText;
+            btn.disabled = false;
+        }
+    }
+}
 </script>
 </body>
 </html>
