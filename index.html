@@ -1117,10 +1117,7 @@ function loadInitialProducts() {
 
     console.log("جاري تحميل قاعدة البيانات بالكامل...");
 
-    db.collection("products")
-      .orderBy("updatedAt", "desc")
-      // ⚠️ هام جداً: تم إزالة .limit() نهائياً لجلب كل المنتجات
-      .get()
+db.collection("products").get()
       .then((querySnapshot) => {
         localProducts = [];
         querySnapshot.forEach((doc) => {
@@ -2787,7 +2784,7 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
         }
     }
 
-    // 3. رسم الجدول (مع زر حذف لكل منتج)
+// 3. رسم الجدول (تم التعديل لإظهار الكمية)
     function renderSalesTable(sales, branchFilter) {
         const tbody = document.getElementById('sales-report-body');
         let grandTotal = 0; 
@@ -2800,10 +2797,15 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
             if (!groupedSales[rawBranch]) {
                 groupedSales[rawBranch] = { name: rawBranch, items: [], branchTotal: 0 };
             }
-            // نمرر الكائن كاملاً (بما فيه id)
-            groupedSales[rawBranch].items.push(s);
-            groupedSales[rawBranch].branchTotal += Number(s.price) || 0;
-            grandTotal += Number(s.price) || 0;
+
+            // --- التعديل هنا: جلب الكمية وحساب الإجمالي ---
+            const qty = Number(s.qty) || 1; // الافتراضي 1 إذا لم توجد كمية
+            const price = Number(s.price) || 0;
+            const itemTotal = price * qty;
+
+            groupedSales[rawBranch].items.push({...s, qty: qty, itemTotal: itemTotal}); // إضافة البيانات للكائن
+            groupedSales[rawBranch].branchTotal += itemTotal;
+            grandTotal += itemTotal;
         });
 
         const branchNames = Object.keys(groupedSales);
@@ -2821,10 +2823,13 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
                     <div style="flex:1;">
                         <span style="color:#666; font-size:11px;">[${item.date}]</span>
                         <span style="font-weight:bold; color:#333;">${item.product}</span>
+                        <!-- عرض الكمية هنا -->
+                        <span style="font-size:11px; background:#eff6ff; color:#1d4ed8; padding:2px 5px; border-radius:4px; margin-right:5px;">
+                            (عدد: ${item.qty})
+                        </span>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <span style="color:#10b981;">${Number(item.price).toLocaleString()} ج.م</span>
-                        <!-- زر الحذف للمدير -->
+                        <span style="color:#10b981;">${item.itemTotal.toLocaleString()} ج.م</span>
                         <button onclick="deleteSaleFromDashboard('${item.id}')" title="حذف هذا المنتج" 
                                 style="background:#fee2e2; color:#ef4444; border:none; width:20px; height:20px; border-radius:50%; cursor:pointer; font-size:12px; line-height:1;">
                             ×
@@ -2837,7 +2842,7 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
             <tr style="border-bottom:2px solid #e2e8f0; background:#fff;">
                 <td style="padding:15px; vertical-align:top; border-left:1px solid #eee;">
                     <div style="font-weight:800; color:#1a73e8; font-size:14px;">🏪 ${branch.name}</div>
-                    <div style="font-size:11px; color:#888; margin-top:5px;">عدد: ${branch.items.length}</div>
+                    <div style="font-size:11px; color:#888; margin-top:5px;">عمليات: ${branch.items.length}</div>
                 </td>
                 <td style="padding:10px; vertical-align:top; border-left:1px solid #eee; background:#f8fafc;">
                     ${productsListHTML}
@@ -2864,16 +2869,13 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
         }
     }
 
-// دالة تحميل تقرير المبيعات Excel
+// دالة تحميل تقرير المبيعات Excel (تم التعديل لإضافة الكمية)
     function downloadSalesReportExcel() {
-        // التحقق من وجود بيانات
         if(!allSales || allSales.length === 0) {
-            alert("⚠️ لا توجد بيانات لتحميلها حالياً. يرجى الضغط على 'تحديث البيانات' أولاً لجلب السجلات.");
+            alert("⚠️ لا توجد بيانات لتحميلها حالياً.");
             return;
         }
 
-        // 1. تجهيز البيانات للإكسيل
-        // نقوم بترتيب البيانات حسب الفرع لتكون منظمة
         const sortedSales = allSales.sort((a, b) => {
             const branchA = (a.branch || "").toLowerCase();
             const branchB = (b.branch || "").toLowerCase();
@@ -2882,31 +2884,35 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
             return 0;
         });
 
-        // تحويل البيانات لشكل مناسب للإكسيل (أسماء الأعمدة بالعربي)
-        const excelData = sortedSales.map(s => ({
-            "تاريخ العملية": s.date,
-            "اسم الفرع": s.branch || "غير محدد",
-            "المنتج": s.product,
-            "السعر (ج.م)": Number(s.price) || 0
-        }));
+        // --- التعديل هنا: إضافة عمود العدد والإجمالي ---
+        const excelData = sortedSales.map(s => {
+            const qty = Number(s.qty) || 1;
+            const price = Number(s.price) || 0;
+            return {
+                "تاريخ العملية": s.date,
+                "اسم الفرع": s.branch || "غير محدد",
+                "المنتج": s.product,
+                "العدد": qty,             // عمود جديد
+                "سعر الوحدة": price,
+                "الإجمالي": price * qty   // عمود جديد
+            };
+        });
 
-        // 2. إنشاء ورقة العمل (Worksheet)
         const ws = XLSX.utils.json_to_sheet(excelData);
 
-        // تنسيق عرض الأعمدة (اختياري لجمال الشكل)
         const wscols = [
             {wch: 15}, // التاريخ
             {wch: 25}, // الفرع
             {wch: 30}, // المنتج
-            {wch: 15}  // السعر
+            {wch: 8},  // العدد
+            {wch: 12}, // سعر الوحدة
+            {wch: 15}  // الإجمالي
         ];
         ws['!cols'] = wscols;
 
-        // 3. إنشاء الملف وحفظه
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "تقرير المبيعات");
         
-        // اسم الملف يحتوي على التاريخ والوقت
         const dateStr = new Date().toISOString().slice(0,10);
         XLSX.writeFile(wb, `Sales_Report_${dateStr}.xlsx`);
     }
