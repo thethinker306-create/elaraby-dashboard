@@ -1104,6 +1104,20 @@ let currentServerConfig = {};
     const db = firebase.firestore();
     const auth = firebase.auth();
     const quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline'], [{ 'color': [] }], ['clean']] } });
+    
+    // --- تهيئة التطبيق الثانوي لإنشاء البائعين بأمان ---
+let secondaryApp;
+let secondaryAuth;
+try {
+    // محاولة إنشاء التطبيق الثانوي
+    secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryApp");
+    secondaryAuth = secondaryApp.auth();
+} catch (error) {
+    // إذا كان التطبيق موجوداً بالفعل، استخدمه مباشرة لتجنب توقف الكود
+    secondaryApp = firebase.app("SecondaryApp");
+    secondaryAuth = secondaryApp.auth();
+}
+// -------------------------
 
     let localProducts = [];
     let currentColors = [];
@@ -3272,37 +3286,38 @@ function filterSellers() {
     }
 }
 
-// 2. إضافة بائع جديد
-// نسخة محسنة من دالة إضافة البائع للتجربة واكتشاف الأخطاء
-// دالة إضافة أو تحديث بائع (مدمجة)
+// دالة إضافة أو تحديث بائع (النسخة الآمنة المربوطة بـ Firebase Auth)
 async function addNewSeller() {
-    // 1. التحقق من الحقول
-    const name = document.getElementById('sellerName').value;
-    const branch = document.getElementById('sellerBranch').value;
-    const user = document.getElementById('sellerUser').value;
-    const pass = document.getElementById('sellerPass').value;
+    // 1. جلب القيم من الحقول
+    const name = document.getElementById('sellerName').value.trim();
+    const branch = document.getElementById('sellerBranch').value.trim();
+    const user = document.getElementById('sellerUser').value.trim().toLowerCase();
+    const pass = document.getElementById('sellerPass').value.trim();
     const btn = document.querySelector("button[onclick='addNewSeller()']");
 
+    // 2. التحقق من الحقول
     if(!name || !branch || !user || !pass) {
-        alert("⚠️ يرجى ملء جميع البيانات");
+        Swal.fire('تنبيه', '⚠️ يرجى ملء جميع البيانات', 'warning');
         return;
     }
 
-    // تغيير نص الزر
-    if(btn) btn.innerHTML = "⏳ جاري الحفظ...";
-    if(btn) btn.disabled = true;
+    // إيميل وهمي للربط مع نظام مصادقة فايربيس
+    const sellerEmail = `${user}@elaraby.com`;
+
+    // تغيير حالة الزر
+    if(btn) { btn.innerHTML = "⏳ جاري الحفظ..."; btn.disabled = true; }
 
     try {
         // === حالة التعديل (Update Mode) ===
         if (editingSellerId) {
             await db.collection('sellers_accounts').doc(editingSellerId).update({
-                name: name.trim(),
-                branch: branch.trim(),
-                username: user.trim().toLowerCase(),
-                password: pass.trim(),
+                name: name,
+                branch: branch,
+                username: user,
+                password: pass, // نحتفظ بها هنا لكي تظهر في الجدول لديك
                 updatedAt: Date.now()
             });
-            alert("✅ تم تحديث بيانات البائع بنجاح");
+            Swal.fire('تم', '✅ تم تحديث بيانات البائع بنجاح', 'success');
             
             // إعادة الوضع للإضافة
             editingSellerId = null;
@@ -3314,70 +3329,64 @@ async function addNewSeller() {
         } 
         // === حالة الإضافة الجديدة (Create Mode) ===
         else {
-            // التحقق من التكرار فقط عند الإضافة الجديدة
-            const check = await db.collection('sellers_accounts')
-                                  .where('username', '==', user.trim().toLowerCase())
-                                  .get();
-            if(!check.empty) {
-                alert("❌ اسم المستخدم هذا مسجل بالفعل!");
-                if(btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
-                }
-                return;
+            // أ) التحقق من عدم تكرار اسم المستخدم في قاعدة البيانات أولاً
+            const checkUser = await db.collection('sellers_accounts').where('username', '==', user).get();
+            if(!checkUser.empty) {
+                throw new Error("اسم المستخدم هذا مسجل بالفعل!");
             }
 
-            await db.collection('sellers_accounts').add({
-                name: name.trim(),
-                branch: branch.trim(),
-                username: user.trim().toLowerCase(),
-                password: pass.trim(),
+            // ب) إنشاء الحساب في Firebase Auth باستخدام (التطبيق الثانوي) حتى لا يخرج المدير
+            const userCredential = await secondaryAuth.createUserWithEmailAndPassword(sellerEmail, pass);
+            
+            // ج) تسجيل الخروج من التطبيق الثانوي فوراً
+            await secondaryAuth.signOut();
+
+            // د) حفظ بيانات البائع في Firestore وربطها بالـ UID الآمن
+            const uid = userCredential.user.uid;
+            await db.collection('sellers_accounts').doc(uid).set({
+                uid: uid,
+                name: name,
+                branch: branch,
+                username: user,
+                password: pass, // للعرض في لوحة التحكم فقط
                 isActive: true,
                 createdAt: Date.now()
             });
-            alert("✅ تم إنشاء حساب البائع بنجاح");
+
+            Swal.fire('نجاح', '✅ تم إنشاء حساب البائع بنجاح', 'success');
         }
 
-        // تفريغ الحقول
+        // تفريغ الحقول بعد النجاح
         document.getElementById('sellerName').value = '';
         document.getElementById('sellerBranch').value = '';
         document.getElementById('sellerUser').value = '';
         document.getElementById('sellerPass').value = '';
 
-    } catch(e) {
-        console.error("❌ حدث خطأ:", e);
-        alert("❌ خطأ: " + e.message);
-    } finally {
-        if(btn) btn.disabled = false;
-        if(!editingSellerId && btn) btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
-    }
-}
-
-// دالة تجهيز النموذج للتعديل
-function prepareEditSeller(id, name, user, branch, pass) {
-    // تعبئة الحقول بالبيانات القديمة
-    document.getElementById('sellerName').value = name;
-    document.getElementById('sellerBranch').value = branch;
-    document.getElementById('sellerUser').value = user;
-    document.getElementById('sellerPass').value = pass;
-    
-    // حفظ المعرف
-    editingSellerId = id;
-    
-    // تغيير شكل الزر ليعرف المستخدم أنه في وضع التعديل
-    const btn = document.querySelector("button[onclick='addNewSeller()']");
-    if(btn) {
-        btn.innerHTML = '<i class="fas fa-sync"></i> حفظ التعديلات';
-        btn.classList.remove('btn-save');
-        btn.classList.add('btn-update'); // تغيير لونه للبرتقالي (حسب تنسيقات CSS لديك)
+    } catch(error) {
+        console.error("❌ حدث خطأ:", error);
         
-        // إضافة زر إلغاء صغير إذا لم يكن موجوداً (اختياري)
-        // يمكنك الاكتفاء بتفريغ الحقول يدوياً لإلغاء التعديل
+        // معالجة رسائل الخطأ لتكون مفهومة للمستخدم
+        if (error.code === 'auth/email-already-in-use') {
+            Swal.fire('خطأ', '❌ اسم المستخدم هذا مسجل بالفعل في النظام!', 'error');
+        } else if (error.code === 'auth/weak-password') {
+            Swal.fire('خطأ', '❌ كلمة المرور ضعيفة جداً (يجب أن تكون 6 أحرف أو أرقام على الأقل)', 'error');
+        } else {
+            Swal.fire('خطأ', '❌ ' + error.message, 'error');
+        }
+    } finally {
+        // إعادة الزر لحالته الطبيعية دائماً (حتى لو حدث خطأ)
+        if(btn) {
+            btn.disabled = false;
+            if (!editingSellerId) {
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
+            } else {
+                btn.innerHTML = '<i class="fas fa-sync"></i> حفظ التعديلات';
+            }
+        }
     }
-    
-    // الصعود لأعلى النموذج
-    document.getElementById('sellerName').scrollIntoView({behavior: 'smooth'});
 }
+    
+
 
 // 3. تغيير الحالة (تفعيل/حظر)
 async function toggleSellerStatus(id, newStatus) {
@@ -3394,20 +3403,31 @@ async function deleteSeller(id) {
 }
 
 // --- دالة تتبع المتواجدين الآن ---
-async function trackOnlineUsers() {
+let onlineUsersUnsubscribe = null;
+
+function trackOnlineUsers() {
     const onlineCountEl = document.getElementById('count-online-now');
     if(!onlineCountEl) return;
 
-    // أي مستخدم قام بنشاط خلال آخر 5 دقائق نعتبره "متواجد"
+    // إيقاف المستمع القديم حتى لا تتراكم العمليات في الخلفية
+    if (onlineUsersUnsubscribe) {
+        onlineUsersUnsubscribe();
+    }
+
+    // حساب الوقت الحالي ناقص 5 دقائق (نعتبر من تفاعل خلالها متصلاً)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
 
     try {
-        // مراقبة حية للمستخدمين النشطين
-        db.collection('sellers_accounts')
+        onlineUsersUnsubscribe = db.collection('sellers_accounts')
           .where('lastSeen', '>=', fiveMinutesAgo)
           .onSnapshot(snap => {
+              // تحديث الرقم
               onlineCountEl.innerText = snap.size;
-              console.log("عدد المتواجدين المحدث: ", snap.size);
+              
+              // تأثير بصري بسيط ليعرف المدير أن العداد يعمل ويتحدث
+              onlineCountEl.style.color = '#10b981';
+              setTimeout(() => { onlineCountEl.style.color = '#0f172a'; }, 1000);
+              
           }, error => {
               console.error("خطأ في مراقبة المتواجدين:", error);
           });
@@ -3416,9 +3436,12 @@ async function trackOnlineUsers() {
     }
 }
 
-// ==========================================
+// 💡 الإضافة السحرية: إعادة تشغيل فحص 
+setInterval(trackOnlineUsers, 60000);
+
+// ========================
     // 📢 نظام الإعلانات المتعدد (Multi-Ads System)
-    // ==========================================
+// ========================
 
     // 1. التحكم في ظهور الحقول
     function toggleAdInputs() {
