@@ -5,6 +5,7 @@
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <!-- مكتبة DOMPurify لتنظيف النصوص من الأكواد الخبيثة -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <meta charset="UTF-8">
@@ -1124,46 +1125,39 @@ try {
     let previousConfig = null; // متغير لحفظ الحالة السابقة (للتراجع)
 let lastVisibleProduct = null;
 const productsPerPage = 100;
-function loadInitialProducts() {
+
+async function loadInitialProducts() {
     const countTotalEl = document.getElementById('count-total');
-    // إظهار مؤشر تحميل للمستخدم ليعرف أن النظام يعمل
     if(countTotalEl) countTotalEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحميل...';
 
-    console.log("جاري تحميل قاعدة البيانات بالكامل...");
+    try {
+        const metaDoc = await db.collection("app_config").doc("metadata").get();
+        const serverTime = metaDoc.exists ? metaDoc.data().last_update_time : 0;
+        const localTime = await localforage.getItem('dashboard_cache_time') || 0;
+        let cachedProducts = await localforage.getItem('dashboard_products');
 
-db.collection("products").get()
-      .then((querySnapshot) => {
-        localProducts = [];
-        querySnapshot.forEach((doc) => {
-            // تخزين البيانات في الذاكرة المحلية
-            localProducts.push({ id: doc.id, ...doc.data() });
-        });
+        if (serverTime > localTime || !cachedProducts) {
+            const querySnapshot = await db.collection("products").get();
+            const rawProducts =[];
+            querySnapshot.forEach((doc) => rawProducts.push({ id: doc.id, ...doc.data() }));
+            
+            localProducts = Object.freeze(rawProducts.map(Object.freeze));
+            
+            await localforage.setItem('dashboard_products', rawProducts);
+            await localforage.setItem('dashboard_cache_time', serverTime);
+        } else {
+            localProducts = Object.freeze(cachedProducts.map(Object.freeze));
+        }
 
-        // تحديث الإحصائيات
         updateDashboardStats(); 
-        
-        // تحديث العداد بالرقم الحقيقي
         if(countTotalEl) countTotalEl.innerText = localProducts.length;
 
-        console.log(`✅ تم تحميل ${localProducts.length} منتج في الذاكرة للبحث السريع`);
-        
-        // تنبيه صغير عند الانتهاء (اختياري)
-        const toastMixin = Swal.mixin({
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 2000
-        });
-        toastMixin.fire({
-            icon: 'success',
-            title: 'تم تجهيز قائمة البحث'
-        });
+        Toast.fire({ icon: 'success', title: 'تم تجهيز قاعدة البيانات والبحث' });
 
-      })
-      .catch((error) => {
-          console.error("Error loading products: ", error);
-          if(countTotalEl) countTotalEl.innerText = "خطأ";
-      });
+    } catch (error) {
+        console.error("Error loading products: ", error);
+        if(countTotalEl) countTotalEl.innerText = "خطأ بالاتصال";
+    }
 }
 
 // استدعاء الدالة عند البدء بدلاً من السناب شوت المفتوح
@@ -1179,67 +1173,6 @@ loadInitialProducts();
     }
 });
     
-    // 1. التحكم في ظهور الحقول حسب الاختيار
-    function toggleAdInputs() {
-        const type = document.getElementById('adSourceType').value;
-        document.getElementById('input-image-group').style.display = (type === 'image') ? 'block' : 'none';
-        document.getElementById('input-code-group').style.display = (type === 'code') ? 'block' : 'none';
-    }
-
-    function toggleTimerInput() {
-        const pos = document.getElementById('adPosition').value;
-        const timerGroup = document.getElementById('timer-group');
-        // إظهار المؤقت فقط إذا كان النوع Popup
-        if(pos === 'popup') {
-            timerGroup.style.opacity = '1'; 
-            timerGroup.style.pointerEvents = 'auto';
-        } else {
-            timerGroup.style.opacity = '0.3'; 
-            timerGroup.style.pointerEvents = 'none';
-        }
-    }
-
-    // 2. جلب البيانات عند التحميل
-    db.collection("app_config").doc("ads").onSnapshot(doc => {
-        if(doc.exists){
-            const d = doc.data();
-            // تعبئة الحقول
-            document.getElementById('adSourceType').value = d.sourceType || 'image';
-            document.getElementById('adImg').value = d.img || "";
-            document.getElementById('adLink').value = d.link || "";
-            document.getElementById('adHtmlCode').value = d.htmlCode || "";
-            document.getElementById('adPosition').value = d.position || "popup";
-            document.getElementById('adTimer').value = d.timer || 0;
-            document.getElementById('adStatus').value = String(d.active);
-            
-            // تحديث الواجهة
-            toggleAdInputs();
-            toggleTimerInput();
-        }
-    });
-
-    // 3. دالة الحفظ المحدثة
-    async function updateAds() {
-        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
-        
-        const data = {
-            sourceType: document.getElementById('adSourceType').value,
-            img: document.getElementById('adImg').value,
-            link: document.getElementById('adLink').value,
-            htmlCode: document.getElementById('adHtmlCode').value,
-            position: document.getElementById('adPosition').value,
-            timer: parseInt(document.getElementById('adTimer').value) || 0,
-            active: document.getElementById('adStatus').value === "true",
-            updatedAt: Date.now()
-        };
-        
-        try {
-            await db.collection("app_config").doc("ads").set(data);
-            alert("✅ تم تحديث الإعلان بنجاح");
-        } catch(e) {
-            alert("❌ خطأ: " + e.message);
-        }
-    }
 
     // --- وظائف المنتجات ---
 function liveSearch(val) {
@@ -1404,6 +1337,13 @@ async function commitProduct() {
             await db.collection("products").doc(id).set(data, {merge:true});
             await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
             updateRealCount();
+            // تحديث القائمة المحلية بالمنتج الجديد لكي يظهر في البحث فوراً
+const newProduct = { id: id, ...data };
+// إزالة النسخة القديمة إذا كان تعديلاً، وإضافة الجديدة
+const filteredList = localProducts.filter(p => p.id !== id);
+filteredList.unshift(newProduct); // إضافته في البداية
+localProducts = Object.freeze(filteredList.map(Object.freeze));
+updateDashboardStats();
             Swal.fire({
   title: 'تم الحفظ!',
   text: 'تم تحديث بيانات المنتج بنجاح',
@@ -1449,78 +1389,18 @@ async function commitProduct() {
 
             // تفريغ الخانات وتحديث القائمة
             clearForm();
-            
-            // (اختياري) إزالة المنتج من القائمة المحلية لتحديث الإحصائيات فوراً
-            localProducts = localProducts.filter(p => p.id !== id);
-            updateDashboardStats();
-
+   
+   // تحديث القائمة المحلية وإعادة تجميدها لتحديث البحث فوراً
+const updatedList = localProducts.filter(p => p.id !== id);
+localProducts = Object.freeze(updatedList.map(Object.freeze));
+updateDashboardStats();
+   
         } catch (e) {
             Swal.fire('خطأ!', 'حدثت مشكلة أثناء الحذف: ' + e.message, 'error');
         }
     }
 }
 
-   // 1. التحكم في ظهور الحقول حسب الاختيار
-    function toggleAdInputs() {
-        const type = document.getElementById('adSourceType').value;
-        document.getElementById('input-image-group').style.display = (type === 'image') ? 'block' : 'none';
-        document.getElementById('input-code-group').style.display = (type === 'code') ? 'block' : 'none';
-    }
-
-    function toggleTimerInput() {
-        const pos = document.getElementById('adPosition').value;
-        const timerGroup = document.getElementById('timer-group');
-        // إظهار المؤقت فقط إذا كان النوع Popup
-        if(pos === 'popup') {
-            timerGroup.style.opacity = '1'; 
-            timerGroup.style.pointerEvents = 'auto';
-        } else {
-            timerGroup.style.opacity = '0.3'; 
-            timerGroup.style.pointerEvents = 'none';
-        }
-    }
-
-    // 2. جلب البيانات عند التحميل
-    db.collection("app_config").doc("ads").onSnapshot(doc => {
-        if(doc.exists){
-            const d = doc.data();
-            // تعبئة الحقول
-            document.getElementById('adSourceType').value = d.sourceType || 'image';
-            document.getElementById('adImg').value = d.img || "";
-            document.getElementById('adLink').value = d.link || "";
-            document.getElementById('adHtmlCode').value = d.htmlCode || "";
-            document.getElementById('adPosition').value = d.position || "popup";
-            document.getElementById('adTimer').value = d.timer || 0;
-            document.getElementById('adStatus').value = String(d.active);
-            
-            // تحديث الواجهة
-            toggleAdInputs();
-            toggleTimerInput();
-        }
-    });
-
-    // 3. دالة الحفظ المحدثة
-    async function updateAds() {
-        if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
-        
-        const data = {
-            sourceType: document.getElementById('adSourceType').value,
-            img: document.getElementById('adImg').value,
-            link: document.getElementById('adLink').value,
-            htmlCode: document.getElementById('adHtmlCode').value,
-            position: document.getElementById('adPosition').value,
-            timer: parseInt(document.getElementById('adTimer').value) || 0,
-            active: document.getElementById('adStatus').value === "true",
-            updatedAt: Date.now()
-        };
-        
-        try {
-            await db.collection("app_config").doc("ads").set(data);
-            alert("✅ تم تحديث الإعلان بنجاح");
-        } catch(e) {
-            alert("❌ خطأ: " + e.message);
-        }
-    }
     // --- وظائف المظهر والإعدادات ---
     // دالة حفظ إعدادات المظهر المحددة فقط
 async function saveAppearanceData() {
@@ -3409,34 +3289,21 @@ function trackOnlineUsers() {
     const onlineCountEl = document.getElementById('count-online-now');
     if(!onlineCountEl) return;
 
-    // إيقاف المستمع القديم حتى لا تتراكم العمليات في الخلفية
-    if (onlineUsersUnsubscribe) {
-        onlineUsersUnsubscribe();
-    }
-
-    // حساب الوقت الحالي ناقص 5 دقائق (نعتبر من تفاعل خلالها متصلاً)
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
 
-    try {
-        onlineUsersUnsubscribe = db.collection('sellers_accounts')
-          .where('lastSeen', '>=', fiveMinutesAgo)
-          .onSnapshot(snap => {
-              // تحديث الرقم
-              onlineCountEl.innerText = snap.size;
-              
-              // تأثير بصري بسيط ليعرف المدير أن العداد يعمل ويتحدث
-              onlineCountEl.style.color = '#10b981';
-              setTimeout(() => { onlineCountEl.style.color = '#0f172a'; }, 1000);
-              
-          }, error => {
-              console.error("خطأ في مراقبة المتواجدين:", error);
-          });
-    } catch (e) {
-        console.error("Error tracking online users:", e);
-    }
+    // استخدام .get() بدلاً من onSnapshot لأنه يعمل بشكل متكرر عبر setInterval
+    db.collection('sellers_accounts')
+      .where('lastSeen', '>=', fiveMinutesAgo)
+      .get()
+      .then(snap => {
+          onlineCountEl.innerText = snap.size;
+          onlineCountEl.style.color = '#10b981';
+          setTimeout(() => { onlineCountEl.style.color = '#0f172a'; }, 1000);
+      })
+      .catch(error => console.error("خطأ في جلب المتواجدين:", error));
 }
-
-// 💡 الإضافة السحرية: إعادة تشغيل فحص 
+// تشغيل مرة فوراً، ثم كل 60 ثانية
+trackOnlineUsers();
 setInterval(trackOnlineUsers, 60000);
 
 // ========================
