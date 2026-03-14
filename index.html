@@ -467,7 +467,7 @@
         <textarea id="images" oninput="syncPreviews()" rows="1" placeholder="http://... , http://..." style="flex: 1;"></textarea>
         
         <!-- زر الرفع الجديد -->
-        <input type="file" id="cloudinaryInput" accept="image/*" style="display: none;" onchange="uploadImageToCloudinary(this)">
+<input type="file" id="cloudinaryInput" accept="image/*" multiple style="display: none;" onchange="uploadMultipleImagesToCloudinary(this)">
         <button type="button" onclick="document.getElementById('cloudinaryInput').click()" class="btn" style="background: #e91e63; width: auto; padding: 0 15px; height: 34px;">
             <i class="fas fa-cloud-upload-alt"></i> رفع صورة
         </button>
@@ -1052,9 +1052,37 @@
             <input type="text" id="aiApiKey" placeholder="AIzaSy...">
         </div>
     </div>
-    <button onclick="saveAIConfig()" class="btn btn-save" style="width:100%; margin-top:15px; height: 40px; font-size: 14px;">
+
+    <!-- قسم التحكم في الـ Prompts الجديد -->
+    <h4 style="margin-top:20px; font-size:13px; color:var(--main-blue); border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">
+        <i class="fas fa-brain"></i> تخصيص أوامر الذكاء الاصطناعي (Prompts)
+    </h4>
+    <div class="form-grid" style="grid-template-columns: 1fr;">
+        <div class="form-group full-width" style="margin-top:10px;">
+            <label>موجه (Prompt) إقناع العميل بالشراء</label>
+            <textarea id="aiPromptConvince" rows="3" placeholder="أنت بائع محترف، قم بإقناع العميل بفوائد هذا المنتج..."></textarea>
+            <p style="font-size:10px; color:#64748b; margin-top:2px; font-weight:bold;">
+                * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{product_data}</code> ليتم استبداله ببيانات المنتج برمجياً داخل التطبيق.
+            </p>
+        </div>
+        <div class="form-group full-width">
+            <label>موجه (Prompt) مقارنة المنتجات</label>
+            <textarea id="aiPromptCompare" rows="3" placeholder="قم بعمل جدول مقارنة احترافي يبرز الفروق بين هذه المنتجات..."></textarea>
+            <p style="font-size:10px; color:#64748b; margin-top:2px; font-weight:bold;">
+                * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{products_data}</code> ليتم استبداله ببيانات المنتجات للمقارنة.
+            </p>
+        </div>
+    </div>
+
+<div style="display:flex; gap:10px; margin-top:15px;">
+    <button onclick="saveAIConfig()" class="btn btn-save" style="flex:3; height: 40px; font-size: 11px;">
         <i class="fas fa-save"></i> حفظ إعدادات الذكاء الاصطناعي
     </button>
+    
+    <button onclick="resetAIPromptsToDefault()" class="btn btn-gray" style="flex:1; height: 40px; font-size: 10px;" title="استعادة أوامر الـ Prompts الافتراضية">
+        <i class="fas fa-undo-alt"></i> استعادة الافتراضي
+    </button>
+</div>
 </section>
     <!-- امان الحساب-->
     <section id="p-security" class="panel">
@@ -2294,11 +2322,11 @@ async function compressImageFile(imageFile) {
 }
 
 // ☁️ دالة رفع صور المنتجات (مع الضغط)
-async function uploadImageToCloudinary(input) {
-    const file = input.files[0];
-    if (!file) return;
+// ☁️ دالة احترافية لرفع صور متعددة وضغطها دفعة واحدة
+async function uploadMultipleImagesToCloudinary(input) {
+    const files = input.files;
+    if (!files || files.length === 0) return;
 
-    // إعدادات حسابك
     const cloudName = "dkuow8vxw"; 
     const uploadPreset = "elaraby_broducts"; 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
@@ -2306,56 +2334,78 @@ async function uploadImageToCloudinary(input) {
     const statusDiv = document.getElementById("cl-upload-status");
     const textArea = document.getElementById("images");
 
-    // 1. مرحلة الضغط
     statusDiv.style.display = "block";
-    statusDiv.style.color = "#f59e0b"; // لون برتقالي
-    statusDiv.innerHTML = '<i class="fas fa-compress-arrows-alt fa-pulse"></i> جاري ضغط الصورة لتقليل الحجم...';
-
-    let fileToUpload = file;
     
-    try {
-        // تنفيذ الضغط
-        fileToUpload = await compressImageFile(file);
+    let successCount = 0;
+    let failCount = 0;
+    let uploadedUrls =[];
+
+    // المعالجة المتسلسلة للصور (لعدم إرهاق المتصفح أو السيرفر)
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         
-        // 2. مرحلة الرفع
-        statusDiv.style.color = "#e91e63"; // لون وردي
-        statusDiv.innerHTML = '<i class="fas fa-cloud-upload-alt fa-pulse"></i> جاري الرفع للسيرفر...';
+        // تحديث رسالة الحالة لتعكس التقدم
+        statusDiv.style.color = "#e91e63";
+        statusDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري ضغط ورفع الصورة (${i + 1} من ${files.length})...`;
 
-        const formData = new FormData();
-        formData.append("file", fileToUpload);
-        formData.append("upload_preset", uploadPreset);
-
-        const response = await fetch(uploadUrl, {
-            method: "POST",
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (data.secure_url) {
-            const currentText = textArea.value.trim();
-            if (currentText.length > 0) {
-                textArea.value = currentText + "," + data.secure_url;
-            } else {
-                textArea.value = data.secure_url;
+        try {
+            // 1. الضغط أولاً
+            let fileToUpload = file;
+            if (typeof compressImageFile === 'function') {
+                fileToUpload = await compressImageFile(file);
             }
 
-            syncPreviews();
+            // 2. الرفع
+            const formData = new FormData();
+            formData.append("file", fileToUpload);
+            formData.append("upload_preset", uploadPreset);
 
-            statusDiv.style.color = "green";
-            statusDiv.innerHTML = '✅ تم الرفع بنجاح!';
-            setTimeout(() => { statusDiv.style.display = "none"; }, 3000);
-        } else {
-            throw new Error(data.error ? data.error.message : "فشل الرفع");
+            const response = await fetch(uploadUrl, {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.secure_url) {
+                uploadedUrls.push(data.secure_url);
+                successCount++;
+            } else {
+                throw new Error(data.error ? data.error.message : "فشل الرفع");
+            }
+
+        } catch (error) {
+            console.error(`خطأ في رفع الصورة ${i + 1}:`, error);
+            failCount++;
         }
-
-    } catch (error) {
-        console.error("Upload Error:", error);
-        statusDiv.style.color = "red";
-        statusDiv.innerHTML = '❌ خطأ: ' + error.message;
-    } finally {
-        input.value = "";
     }
+
+    // إضافة الروابط الجديدة إلى مربع النص (بدون مسح الروابط القديمة)
+    if (uploadedUrls.length > 0) {
+        const currentText = textArea.value.trim();
+        const newUrlsString = uploadedUrls.join(",");
+        
+        if (currentText.length > 0) {
+            textArea.value = currentText + "," + newUrlsString;
+        } else {
+            textArea.value = newUrlsString;
+        }
+        // تحديث عرض الصور في الشاشة
+        syncPreviews();
+    }
+
+    // إظهار تقرير نهائي للمستخدم
+    if (failCount === 0) {
+        statusDiv.style.color = "green";
+        statusDiv.innerHTML = `✅ تم رفع ${successCount} صورة بنجاح!`;
+    } else {
+        statusDiv.style.color = "#f59e0b";
+        statusDiv.innerHTML = `⚠️ اكتمل: تم رفع ${successCount} صورة، وفشل ${failCount} صورة.`;
+    }
+
+    // إخفاء التنبيه بعد 4 ثوانٍ وتفريغ حقل الإدخال
+    setTimeout(() => { statusDiv.style.display = "none"; }, 4000);
+    input.value = "";
 }
 
 // ☁️ دالة رفع صور الألوان (مع الضغط)
@@ -3577,19 +3627,27 @@ async function publishNewAd() {
     }
 }
 // 1. استدعاء إعدادات الذكاء الاصطناعي
+// 1. استدعاء إعدادات الذكاء الاصطناعي مع الـ Prompts
 db.collection("app_config").doc("ai_settings").onSnapshot(doc => {
     if(doc.exists) {
         const d = doc.data();
         document.getElementById('aiStatus').value = d.active !== false ? "true" : "false";
         document.getElementById('aiApiKey').value = d.apiKey || "";
+        
+        // جلب البرومبت أو وضع نصوص احترافية كقيمة افتراضية
+        document.getElementById('aiPromptConvince').value = d.promptConvince || "أنت بائع خبير وودود في متجرنا. مهمتك هي إقناع العميل بشراء هذا المنتج من خلال إبراز مميزاته وفوائده بأسلوب تسويقي جذاب ومقنع جداً، وتحدث باللهجة المصرية العامية الراقية. إليك بيانات المنتج: {product_data}";
+        
+        document.getElementById('aiPromptCompare').value = d.promptCompare || "أنت خبير في مبيعات الأجهزة. قم بإنشاء مقارنة تفصيلية واحترافية بين المنتجات التالية، موضحاً الفروق الرئيسية ونقاط القوة والضعف، وأي منتج يناسب أي نوع من العملاء بشكل حيادي. إليك البيانات: {products_data}";
     }
 });
 
-// 2. دالة حفظ الإعدادات
+// 2. دالة حفظ إعدادات الذكاء الاصطناعي (تمت إضافة حقول الـ Prompts)
 async function saveAIConfig() {
     if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
     const active = document.getElementById('aiStatus').value === "true";
     const apiKey = document.getElementById('aiApiKey').value.trim();
+    const promptConvince = document.getElementById('aiPromptConvince').value.trim();
+    const promptCompare = document.getElementById('aiPromptCompare').value.trim();
 
     if(!apiKey) return alert("⚠️ يرجى إدخال مفتاح الـ API");
 
@@ -3601,10 +3659,12 @@ async function saveAIConfig() {
         await db.collection("app_config").doc("ai_settings").set({
             active: active,
             apiKey: apiKey,
+            promptConvince: promptConvince,
+            promptCompare: promptCompare,
             updatedAt: Date.now()
         }, {merge: true});
         
-        Toast.fire({icon: 'success', title: 'تم حفظ إعدادات AI بنجاح'});
+        Toast.fire({icon: 'success', title: 'تم حفظ إعدادات AI والـ Prompts بنجاح'});
     } catch(e) {
         alert("❌ خطأ في الحفظ: " + e.message);
     } finally {
@@ -3612,6 +3672,34 @@ async function saveAIConfig() {
     }
 }
 
+// 3. دالة استعادة أوامر الذكاء الاصطناعي الافتراضية
+async function resetAIPromptsToDefault() {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+    
+    // رسالة تأكيد للمستخدم
+    if(!confirm("هل أنت متأكد من استعادة أوامر الذكاء الاصطناعي (Prompts) الافتراضية؟ سيتم مسح تعديلاتك الحالية.")) return;
+    
+    // النصوص الافتراضية الدقيقة
+    const defaultConvince = "أنت بائع خبير وودود في متجرنا. مهمتك هي إقناع العميل بشراء هذا المنتج من خلال إبراز مميزاته وفوائده بأسلوب تسويقي جذاب ومقنع جداً، وتحدث باللهجة المصرية العامية الراقية. إليك بيانات المنتج: {product_data}";
+    const defaultCompare = "أنت خبير في مبيعات الأجهزة. قم بإنشاء مقارنة تفصيلية واحترافية بين المنتجات التالية، موضحاً الفروق الرئيسية ونقاط القوة والضعف، وأي منتج يناسب أي نوع من العملاء بشكل حيادي. إليك البيانات: {products_data}";
+
+    // 1. تحديث الخانات أمام المستخدم فوراً
+    document.getElementById('aiPromptConvince').value = defaultConvince;
+    document.getElementById('aiPromptCompare').value = defaultCompare;
+
+    // 2. الحفظ التلقائي في قاعدة البيانات (بدون التأثير على مفتاح API أو حالة التفعيل)
+    try {
+        await db.collection("app_config").doc("ai_settings").set({
+            promptConvince: defaultConvince,
+            promptCompare: defaultCompare,
+            updatedAt: Date.now()
+        }, {merge: true}); // merge: true تضمن عدم مسح الـ API Key
+        
+        Toast.fire({icon: 'success', title: '⏪ تم استعادة وحفظ الأوامر الافتراضية بنجاح'});
+    } catch(e) {
+        alert("❌ حدث خطأ أثناء الاستعادة: " + e.message);
+    }
+}
 
 </script>
 </body>
