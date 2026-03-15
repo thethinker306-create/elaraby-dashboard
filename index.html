@@ -1039,7 +1039,7 @@
         <h3 style="margin:0;"><i class="fas fa-robot" style="color:#1a73e8;"></i> إعدادات المساعد الذكي (AI)</h3>
     </div>
     
-    <div class="form-grid">
+    <div class="form-grid" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
         <div class="form-group">
             <label>حالة المساعد الذكي في التطبيق</label>
             <select id="aiStatus">
@@ -1051,38 +1051,43 @@
             <label>مفتاح الربط (Gemini API Key) 🔑</label>
             <input type="text" id="aiApiKey" placeholder="AIzaSy...">
         </div>
+        <div class="form-group full-width">
+            <button onclick="saveAIBasicConfig()" class="btn btn-save" style="width:100%; height: 40px; font-size: 13px;">
+                <i class="fas fa-save"></i> حفظ المفتاح والحالة
+            </button>
+        </div>
     </div>
 
-    <!-- قسم التحكم في الـ Prompts الجديد -->
+    <!-- قسم التحكم في الـ Prompts الجديد بأسلوب فردي -->
     <h4 style="margin-top:20px; font-size:13px; color:var(--main-blue); border-bottom:1px dashed #cbd5e1; padding-bottom:5px;">
         <i class="fas fa-brain"></i> تخصيص أوامر الذكاء الاصطناعي (Prompts)
     </h4>
-    <div class="form-grid" style="grid-template-columns: 1fr;">
-        <div class="form-group full-width" style="margin-top:10px;">
-            <label>موجه (Prompt) إقناع العميل بالشراء</label>
-            <textarea id="aiPromptConvince" rows="3" placeholder="أنت بائع محترف، قم بإقناع العميل بفوائد هذا المنتج..."></textarea>
-            <p style="font-size:10px; color:#64748b; margin-top:2px; font-weight:bold;">
-                * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{product_data}</code> ليتم استبداله ببيانات المنتج برمجياً داخل التطبيق.
-            </p>
-        </div>
-        <div class="form-group full-width">
-            <label>موجه (Prompt) مقارنة المنتجات</label>
-            <textarea id="aiPromptCompare" rows="3" placeholder="قم بعمل جدول مقارنة احترافي يبرز الفروق بين هذه المنتجات..."></textarea>
-            <p style="font-size:10px; color:#64748b; margin-top:2px; font-weight:bold;">
-                * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{products_data}</code> ليتم استبداله ببيانات المنتجات للمقارنة.
-            </p>
+    
+    <!-- 1. موجه الإقناع -->
+    <div class="form-group full-width" style="margin-top:15px; background:#fff; padding:15px; border:1px solid #cbd5e1; border-radius:8px;">
+        <label style="color:#f59e0b; font-size:13px;"><i class="fas fa-comment-dollar"></i> موجه (Prompt) إقناع العميل بالشراء</label>
+        <textarea id="aiPromptConvince" rows="6" style="margin-top:5px; font-size:13px; line-height:1.6;" placeholder="أنت بائع محترف..."></textarea>
+        <p style="font-size:11px; color:#64748b; margin-top:5px; font-weight:bold;">
+            * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{product_data}</code> ليتم استبداله ببيانات المنتج برمجياً داخل التطبيق.
+        </p>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="saveSinglePrompt('convince')" class="btn btn-update" style="flex:2;"><i class="fas fa-save"></i> حفظ موجه الإقناع</button>
+            <button onclick="restoreSinglePrompt('convince')" class="btn btn-gray" style="flex:1;"><i class="fas fa-undo"></i> استعادة </button>
         </div>
     </div>
 
-<div style="display:flex; gap:10px; margin-top:15px;">
-    <button onclick="saveAIConfig()" class="btn btn-save" style="flex:3; height: 40px; font-size: 11px;">
-        <i class="fas fa-save"></i> حفظ إعدادات الذكاء الاصطناعي
-    </button>
-    
-    <button onclick="resetAIPromptsToDefault()" class="btn btn-gray" style="flex:1; height: 40px; font-size: 10px;" title="استعادة أوامر الـ Prompts الافتراضية">
-        <i class="fas fa-undo-alt"></i> استعادة الافتراضي
-    </button>
-</div>
+    <!-- 2. موجه المقارنة -->
+    <div class="form-group full-width" style="margin-top:15px; background:#fff; padding:15px; border:1px solid #cbd5e1; border-radius:8px;">
+        <label style="color:#3b82f6; font-size:13px;"><i class="fas fa-balance-scale"></i> موجه (Prompt) مقارنة المنتجات</label>
+        <textarea id="aiPromptCompare" rows="6" style="margin-top:5px; font-size:13px; line-height:1.6;" placeholder="قم بعمل جدول مقارنة احترافي..."></textarea>
+        <p style="font-size:11px; color:#64748b; margin-top:5px; font-weight:bold;">
+            * استخدم المتغير <code style="background:#e2e8f0; padding:2px 4px; border-radius:3px;">{products_data}</code> ليتم استبداله ببيانات المنتجات للمقارنة.
+        </p>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="saveSinglePrompt('compare')" class="btn btn-update" style="flex:2;"><i class="fas fa-save"></i> حفظ موجه المقارنة</button>
+            <button onclick="restoreSinglePrompt('compare')" class="btn btn-gray" style="flex:1;"><i class="fas fa-undo"></i> استعادة</button>
+        </div>
+    </div>
 </section>
     <!-- امان الحساب-->
     <section id="p-security" class="panel">
@@ -3641,66 +3646,93 @@ db.collection("app_config").doc("ai_settings").onSnapshot(doc => {
     }
 });
 
-// 2. دالة حفظ إعدادات الذكاء الاصطناعي (تمت إضافة حقول الـ Prompts)
-async function saveAIConfig() {
+// 2. دالة حفظ إعدادات الذكاء الاصطناعي (تمت إضافة حقول الـ Prompts)// --- نصوص الـ Prompts الافتراضية ---
+const DEFAULT_PROMPT_CONVINCE = `أنت بياع مصري "بريمو" وشاطر جداً في بيع الأجهزة المنزلية.
+عاوزك تساعدني أقنع الزبون يشتري المنتج ده فوراً "باللهجة العامية المصرية" اللذيذة والمقنعة، دي بيانات المنتج:
+{product_data}
+
+أعطني النتيجة ككود HTML مباشر (بدون علامات Markdown مثل \`\`\`html)، واستخدم التنسيق ده بالظبط:
+<div class="ai-section"><h3>⭐ الخلاصة في المميزات</h3><ul>(نقطتين أو تلاتة بالعامية بيبرزوا أقوى حاجة في المنتج)</ul></div>
+<div class="ai-section"><h3>⚔️ ليه ده أحسن من غيره؟</h3><p>(اشرح ليه المنتج ده يكسب أي جهاز تاني في السوق من نفس فئته)</p></div>
+<div class="ai-section"><h3>💬 الكلمة اللي هتخلص البيعة</h3><p>(جملة سحرية وعشرية يقولها البياع للزبون في وشه عشان يريحه ويخليه يشتري)</p></div>
+<div class="ai-section"><h3>🧠 لو قالي "ده غالي" أقوله إيه؟</h3><p>(رد ذكي ومقنع بالعامية يبرر السعر ويحسس الزبون إنه كسبان)</p></div>
+<div class="ai-section"><h3>🔥 ليه لازم يلحق يشتريه دلوقتي؟</h3><p>(جملة تخلق حالة من الاستعجال بشياكة زي إن السعر هيغلى أو الكمية بتخلص)</p></div>`;
+
+const DEFAULT_PROMPT_COMPARE = `أنت بياع مصري شاطر جداً وخبير في الأجهزة المنزلية والإلكترونيات. 
+مطلوب منك تعمل مقارنة سريعة ومقنعة بين المنتجين دول "باللهجة العامية المصرية" عشان تساعد الزبون يختار الصح وهو مطمن:
+
+{products_data}
+
+أعطني النتيجة ككود HTML مباشر (بدون علامات Markdown مثل \`\`\`html)، واستخدم التنسيق ده بالظبط:
+<div class="ai-compare-table-wrapper">
+    <table class="ai-compare-table">
+        <tr><th>إيه الفرق؟</th><th>المنتج الأول</th><th>المنتج الثاني</th></tr>
+        <tr><td>(نقطة المقارنة 1)</td><td>(جمله واحده قصيره - تفاصيل بالعامية)</td><td>(جمله واحده قصيره - تفاصيل بالعامية)</td></tr>
+        <tr><td>(نقطة المقارنة 2)</td><td>(تفاصيل بالعامية)</td><td>(تفاصيل بالعامية)</td></tr>
+        <tr><td>(نقطة المقارنة 3)</td><td>(تفاصيل بالعامية)</td><td>(تفاصيل بالعامية)</td></tr>
+    </table>
+</div>
+<div class="ai-section"><h3>👥 مين يشتري إيه؟</h3><p>(اشرح للمندوب بالعامية: الزبون اللي بيدور على كذا ياخد الأول، واللي بيدور على كذا ياخد التاني)</p></div>
+<div class="ai-section"><h3>💡 الزتونة (نصيحة البيع)</h3><p>(نصيحة أخوية للمندوب يقولها للزبون عشان يقفل البيعة بشياكة وثقة)</p></div>`;
+
+// 1. استدعاء الإعدادات وعرضها
+db.collection("app_config").doc("ai_settings").onSnapshot(doc => {
+    if(doc.exists) {
+        const d = doc.data();
+        document.getElementById('aiStatus').value = d.active !== false ? "true" : "false";
+        document.getElementById('aiApiKey').value = d.apiKey || "";
+        document.getElementById('aiPromptConvince').value = d.promptConvince || DEFAULT_PROMPT_CONVINCE;
+        document.getElementById('aiPromptCompare').value = d.promptCompare || DEFAULT_PROMPT_COMPARE;
+    }
+});
+
+// 2. حفظ المفتاح والحالة فقط
+async function saveAIBasicConfig() {
     if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
     const active = document.getElementById('aiStatus').value === "true";
     const apiKey = document.getElementById('aiApiKey').value.trim();
-    const promptConvince = document.getElementById('aiPromptConvince').value.trim();
-    const promptCompare = document.getElementById('aiPromptCompare').value.trim();
-
-    if(!apiKey) return alert("⚠️ يرجى إدخال مفتاح الـ API");
-
-    const btn = document.querySelector('button[onclick="saveAIConfig()"]');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
 
     try {
         await db.collection("app_config").doc("ai_settings").set({
-            active: active,
-            apiKey: apiKey,
-            promptConvince: promptConvince,
-            promptCompare: promptCompare,
-            updatedAt: Date.now()
+            active: active, apiKey: apiKey, updatedAt: Date.now()
         }, {merge: true});
-        
-        Toast.fire({icon: 'success', title: 'تم حفظ إعدادات AI والـ Prompts بنجاح'});
-    } catch(e) {
-        alert("❌ خطأ في الحفظ: " + e.message);
-    } finally {
-        btn.innerHTML = originalText;
-    }
+        Toast.fire({icon: 'success', title: 'تم حفظ المفتاح والحالة بنجاح'});
+    } catch(e) { alert("❌ خطأ: " + e.message); }
 }
 
-// 3. دالة استعادة أوامر الذكاء الاصطناعي الافتراضية
-async function resetAIPromptsToDefault() {
+// 3. حفظ موجه واحد فقط (فردي)
+async function saveSinglePrompt(type) {
     if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
     
-    // رسالة تأكيد للمستخدم
-    if(!confirm("هل أنت متأكد من استعادة أوامر الذكاء الاصطناعي (Prompts) الافتراضية؟ سيتم مسح تعديلاتك الحالية.")) return;
-    
-    // النصوص الافتراضية الدقيقة
-    const defaultConvince = "أنت بائع خبير وودود في متجرنا. مهمتك هي إقناع العميل بشراء هذا المنتج من خلال إبراز مميزاته وفوائده بأسلوب تسويقي جذاب ومقنع جداً، وتحدث باللهجة المصرية العامية الراقية. إليك بيانات المنتج: {product_data}";
-    const defaultCompare = "أنت خبير في مبيعات الأجهزة. قم بإنشاء مقارنة تفصيلية واحترافية بين المنتجات التالية، موضحاً الفروق الرئيسية ونقاط القوة والضعف، وأي منتج يناسب أي نوع من العملاء بشكل حيادي. إليك البيانات: {products_data}";
+    const fieldId = type === 'convince' ? 'aiPromptConvince' : 'aiPromptCompare';
+    const dbField = type === 'convince' ? 'promptConvince' : 'promptCompare';
+    const promptText = document.getElementById(fieldId).value.trim();
 
-    // 1. تحديث الخانات أمام المستخدم فوراً
-    document.getElementById('aiPromptConvince').value = defaultConvince;
-    document.getElementById('aiPromptCompare').value = defaultCompare;
-
-    // 2. الحفظ التلقائي في قاعدة البيانات (بدون التأثير على مفتاح API أو حالة التفعيل)
     try {
         await db.collection("app_config").doc("ai_settings").set({
-            promptConvince: defaultConvince,
-            promptCompare: defaultCompare,
-            updatedAt: Date.now()
-        }, {merge: true}); // merge: true تضمن عدم مسح الـ API Key
-        
-        Toast.fire({icon: 'success', title: '⏪ تم استعادة وحفظ الأوامر الافتراضية بنجاح'});
-    } catch(e) {
-        alert("❌ حدث خطأ أثناء الاستعادة: " + e.message);
-    }
+            [dbField]: promptText, updatedAt: Date.now()
+        }, {merge: true});
+        Toast.fire({icon: 'success', title: 'تم حفظ الموجه بنجاح'});
+    } catch(e) { alert("❌ خطأ: " + e.message); }
 }
 
+// 4. استعادة موجه واحد للوضع الافتراضي (فردي)
+async function restoreSinglePrompt(type) {
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
+    if(!confirm("سيتم استعادة النص الافتراضي لهذا الموجه ومسح تعديلاتك. هل توافق؟")) return;
+
+    const fieldId = type === 'convince' ? 'aiPromptConvince' : 'aiPromptCompare';
+    const dbField = type === 'convince' ? 'promptConvince' : 'promptCompare';
+    const defaultText = type === 'convince' ? DEFAULT_PROMPT_CONVINCE : DEFAULT_PROMPT_COMPARE;
+
+    try {
+        document.getElementById(fieldId).value = defaultText;
+        await db.collection("app_config").doc("ai_settings").set({
+            [dbField]: defaultText, updatedAt: Date.now()
+        }, {merge: true});
+        Toast.fire({icon: 'success', title: 'تم استعادة الموجه الافتراضي'});
+    } catch(e) { alert("❌ خطأ: " + e.message); }
+}
 </script>
 </body>
 </html>
