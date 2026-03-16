@@ -455,13 +455,47 @@
 </div>
             
 <div class="form-group full-width">
-    <label>التفاصيل (اكتب كل مواصفة في سطر منفصل)</label>
-    <textarea id="editor-container" rows="8" placeholder="اكتب المواصفات هنا...
-مثال:
-[الشاشة]
-الحجم: 55 بوصة
-الضمان - 5 سنوات
-يدعم الواي فاي" style="resize: vertical; font-size: 13px; line-height: 1.6; padding: 10px;"></textarea>
+    <label>التفاصيل والمواصفات (استخدم شريط الأدوات للتنسيق)</label>
+    
+    <!-- شريط الأدوات الذكي -->
+    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-bottom: none; border-radius: 8px 8px 0 0; padding: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
+        
+        <button type="button" onclick="wrapText('[', ']')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;" title="يجعل النص كارت رئيسي">
+            <i class="fas fa-heading"></i> عنوان كارت
+        </button>
+        
+        <button type="button" onclick="wrapText('', ' : ')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;" title="يفصل بين الميزة وتفاصيلها">
+            <i class="fas fa-columns"></i> مفتاح: قيمة
+        </button>
+
+        <span style="border-right: 1px solid #cbd5e1; margin: 0 5px;"></span>
+
+        <button type="button" onclick="wrapText('<b>', '</b>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;">
+            <i class="fas fa-bold"></i> عريض
+        </button>
+        
+        <button type="button" onclick="wrapText('<u>', '</u>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;">
+            <i class="fas fa-underline"></i> تسطير
+        </button>
+
+        <button type="button" onclick="wrapText('<span style=\'color:red;\'>', '</span>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color: red;">
+            <i class="fas fa-tint"></i> أحمر
+        </button>
+
+        <span style="border-right: 1px solid #cbd5e1; margin: 0 5px;"></span>
+
+        <button type="button" onclick="wrapText('⭐ ', '')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color:#f59e0b;">
+            ⭐ نجمة
+        </button>
+        
+        <button type="button" onclick="wrapText('🔥 ', '')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color:#ef4444;">
+            🔥 نار
+        </button>
+    </div>
+
+    <!-- مربع النص -->
+    <textarea id="editor-container" rows="10" placeholder="اكتب المواصفات هنا...
+حدد أي نص واضغط على الأزرار بالأعلى لتنسيقه." style="border-radius: 0 0 8px 8px; border-top: none; resize: vertical; font-size: 14px; line-height: 1.8; padding: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"></textarea>
 </div>
 
 <!-- بداية كود الصور المعدل مع زر الرفع -->
@@ -3737,6 +3771,30 @@ async function restoreSinglePrompt(type) {
         }, {merge: true});
         Toast.fire({icon: 'success', title: 'تم استعادة الموجه الافتراضي'});
     } catch(e) { alert("❌ خطأ: " + e.message); }
+}
+// دالة شريط الأدوات الذكي لتنسيق النص
+function wrapText(startTag, endTag) {
+    const textArea = document.getElementById("editor-container");
+    const start = textArea.selectionStart;
+    const end = textArea.selectionEnd;
+    const selectedText = textArea.value.substring(start, end);
+    
+    // دمج التاج قبل وبعد النص المحدد
+    const replacement = startTag + selectedText + endTag;
+    
+    // استبدال النص في المربع
+    textArea.value = textArea.value.substring(0, start) + replacement + textArea.value.substring(end);
+    
+    // إعادة التركيز على مربع النص
+    textArea.focus();
+    
+    // وضع المؤشر في المكان الصحيح بعد الإضافة
+    if (selectedText.length === 0) {
+        textArea.selectionStart = textArea.selectionEnd = start + startTag.length;
+    } else {
+        textArea.selectionStart = start;
+        textArea.selectionEnd = start + replacement.length;
+    }
 }
 </script>
 </body>
