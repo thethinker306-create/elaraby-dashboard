@@ -365,7 +365,8 @@
     </div>
 </div>
 <aside class="sidebar">
-    <div class="sidebar-brand"><i class="fas fa-layer-group"></i> <span>لوحة التحكم المطور</span></div>
+    <div class="sidebar-brand"><i class="fas fa-layer-group"></i> <span>لوحة تحكم المطور</span></div>
+    <h3>لوحة التحكم</h3>
     <ul class="nav-menu">
         <li><button class="nav-link active" onclick="showPanel('p-products', this)"><i class="fas fa-box"></i> <span>المنتجات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-bundles', this)"><i class="fas fa-gift"></i> <span>أكواد باندل</span></button></li>
@@ -455,47 +456,32 @@
 </div>
             
 <div class="form-group full-width">
-    <label>التفاصيل والمواصفات (استخدم شريط الأدوات للتنسيق)</label>
+    <label>التفاصيل والمواصفات (يمكنك لصق النص الخام والضغط على التنسيق الذكي)</label>
     
-    <!-- شريط الأدوات الذكي -->
-    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-bottom: none; border-radius: 8px 8px 0 0; padding: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
-        
+    <!-- زر التنسيق الذكي (الجديد) -->
+    <button type="button" onclick="smartFormatDetails()" class="btn" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white; border-radius: 8px 8px 0 0; font-weight: bold; width: 100%; height: 40px; font-size: 14px; border-bottom: none;">
+        <i class="fas fa-wand-magic-sparkles"></i> تنسيق ذكي وتلقائي للمواصفات ✨
+    </button>
+
+    <!-- شريط الأدوات اليدوي -->
+    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-top: none; border-bottom: none; padding: 8px; display: flex; gap: 5px; flex-wrap: wrap;">
         <button type="button" onclick="wrapText('[', ']')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;" title="يجعل النص كارت رئيسي">
             <i class="fas fa-heading"></i> عنوان كارت
         </button>
-        
-        <button type="button" onclick="wrapText('', ' : ')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;" title="يفصل بين الميزة وتفاصيلها">
+        <button type="button" onclick="wrapText('', ' : ')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;">
             <i class="fas fa-columns"></i> مفتاح: قيمة
         </button>
-
         <span style="border-right: 1px solid #cbd5e1; margin: 0 5px;"></span>
-
-        <button type="button" onclick="wrapText('<b>', '</b>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;">
-            <i class="fas fa-bold"></i> عريض
-        </button>
-        
-        <button type="button" onclick="wrapText('<u>', '</u>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset;">
-            <i class="fas fa-underline"></i> تسطير
-        </button>
-
-        <button type="button" onclick="wrapText('<span style=\'color:red;\'>', '</span>')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color: red;">
-            <i class="fas fa-tint"></i> أحمر
-        </button>
-
-        <span style="border-right: 1px solid #cbd5e1; margin: 0 5px;"></span>
-
         <button type="button" onclick="wrapText('⭐ ', '')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color:#f59e0b;">
-            ⭐ نجمة
+            ⭐ مميز
         </button>
-        
         <button type="button" onclick="wrapText('🔥 ', '')" class="btn btn-gray" style="padding: 4px 10px; font-size: 11px; flex: unset; color:#ef4444;">
-            🔥 نار
+            🔥 عرض
         </button>
     </div>
 
     <!-- مربع النص -->
-    <textarea id="editor-container" rows="10" placeholder="اكتب المواصفات هنا...
-حدد أي نص واضغط على الأزرار بالأعلى لتنسيقه." style="border-radius: 0 0 8px 8px; border-top: none; resize: vertical; font-size: 14px; line-height: 1.8; padding: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"></textarea>
+    <textarea id="editor-container" rows="12" placeholder="قم بلصق مواصفات المنتج هنا... ثم اضغط على زر 'تنسيق ذكي' بالأعلى ليتم ترتيبها تلقائياً." style="border-radius: 0 0 8px 8px; border-top: 1px solid #cbd5e1; resize: vertical; font-size: 14px; line-height: 1.8; padding: 15px; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"></textarea>
 </div>
 
 <!-- بداية كود الصور المعدل مع زر الرفع -->
@@ -3796,6 +3782,73 @@ function wrapText(startTag, endTag) {
         textArea.selectionEnd = start + replacement.length;
     }
 }
+
+// ===============================
+// 🧠 خوارزمية التنسيق الذكي (تعتمد على علامة : - كعنوان)
+// ==============================
+window.smartFormatDetails = function() {
+    const textarea = document.getElementById("editor-container");
+    let text = textarea.value;
+
+    if (!text.trim()) {
+        if(typeof notify === 'function') notify("يرجى لصق التفاصيل أولاً!", "warning", "toast");
+        else alert("يرجى لصق التفاصيل أولاً!");
+        return;
+    }
+
+    // 1. تقسيم النص إلى سطور وتنظيفها
+    let lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    let formattedLines = [];
+
+    lines.forEach(line => {
+        // تنظيف بداية السطر من الرموز العشوائية الناتجة عن النسخ
+        line = line.replace(/^[-*•>✓✔]\s*/, '');
+
+        // 2. فحص هل السطر يحتوي على علامة النقطتين والشرطة (مع أو بدون مسافات)
+        // يبحث عن: ":-" أو " : - " أو ": -"
+        const headingRegex = /\s*:\s*-/;
+
+        if (headingRegex.test(line)) {
+            // تقسيم السطر من عند العلامة
+            let parts = line.split(headingRegex);
+            
+            let titlePart = parts[0].trim();
+            // النص قبل العلامة (سيكون عنوان الكارت)
+            let contentPart = parts.length > 1 ? parts.slice(1).join(':-').trim() : ""; // النص بعد العلامة (إن وجد)
+
+            // تنظيف الأقواس لو كانت موجودة مسبقاً لمنع تكرارها [[عنوان]]
+            titlePart = titlePart.replace(/^\[|\]$/g, '');
+
+            // إضافة مسافة فارغة قبل الكارت الجديد لترتيب الشكل، ووضع العنوان بين أقواس
+            formattedLines.push(`\n[${titlePart}]`);
+
+            // إذا كان هناك نص مكتوب بعد العلامة في نفس السطر، ننزله كسطر مواصفات تحته
+            if (contentPart) {
+                formattedLines.push(contentPart);
+            }
+        } else {
+            // 3. الأسطر العادية (مواصفات فرعية)
+            // ضمان وجود مسافة قبل وبعد النقطتين العادية (بدون شرطة) لكي يقرأها ويلونها تطبيق العميل
+            if (line.includes(':') && !line.includes(' : ')) {
+                line = line.replace(/\s*:\s*/g, ' : ');
+            }
+            formattedLines.push(line);
+        }
+    });
+
+    // 4. إعادة النص المنسق إلى المربع
+    textarea.value = formattedLines.join('\n').trim();
+
+    // 5. تأثير بصري (ومضة خضراء) لإشعار المستخدم بنجاح التنسيق
+    textarea.style.transition = "background-color 0.3s";
+    textarea.style.backgroundColor = "#dcfce7"; 
+    setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 600);
+
+    // إشعار النجاح
+    if(typeof notify === 'function') {
+        notify("تم تنسيق العناوين بناءً على علامة ( : - ) بنجاح ✨", "success", "toast");
+    }
+};
 </script>
 </body>
 </html>
