@@ -770,20 +770,31 @@
 
 </section>
 
-    <section id="p-settings" class="panel">
-        <h3 style="margin:0 0 10px 0; font-size:14px;">🔧 إعدادات المصنع</h3>
+<section id="p-settings" class="panel">
+    <h3 style="margin:0 0 10px 0; font-size:14px;">🔧 إعدادات المصنع وصيانة البيانات</h3>
+    
+    <p style="font-size:12px; color:#666; margin-bottom:15px;">استخدم هذه الخيارات لإدارة قاعدة البيانات وإعادة ضبط القالب.</p>
+    
+    <div class="btn-group" style="flex-direction:column; gap: 15px;">
         
-        <p style="font-size:12px; color:#666; margin-bottom:15px;">استخدم هذه الخيارات لإعادة ضبط القالب إذا واجهت مشاكل في التصميم.</p>
-        
-        <div class="btn-group" style="flex-direction:column;">
-             <button class="btn btn-gray" onclick="resetAppearanceToDefault()">
-                <i class="fas fa-paint-brush"></i> استعادة ألوان ولوجو القالب الافتراضية
-            </button>
-            <button class="btn btn-red" onclick="resetAllConfig()">
-                <i class="fas fa-bomb"></i> استعادة جميع الإعدادات (المظهر والإشعارات)
+        <!-- الزر الجديد: التنسيق الذكي الشامل -->
+        <div style="background: #f0fdf4; border: 1px dashed #22c55e; padding: 15px; border-radius: 8px; text-align: center;">
+            <h4 style="margin: 0 0 10px 0; color: #16a34a;">✨ التنسيق الذكي الشامل للمنتجات</h4>
+            <p style="font-size: 11px; color: #666; margin-bottom: 10px;">سيقوم هذا الخيار بالمرور على جميع المنتجات في قاعدة البيانات وتنسيق التفاصيل الخاصة بها (تحويل السطور التي تحتوي على <b style="color:red;">: -</b> إلى عناوين).</p>
+            <button class="btn btn-save" onclick="applySmartFormatToAllProducts()" style="width: 100%; font-size: 13px; height: 40px; background: linear-gradient(135deg, #22c55e, #16a34a);">
+                <i class="fas fa-magic"></i> تطبيق التنسيق الذكي على كل المنتجات
             </button>
         </div>
-    </section>
+
+        <!-- الأزرار القديمة -->
+        <button class="btn btn-gray" onclick="resetAppearanceToDefault()">
+            <i class="fas fa-paint-brush"></i> استعادة ألوان ولوجو القالب الافتراضية
+        </button>
+        <button class="btn btn-red" onclick="resetAllConfig()">
+            <i class="fas fa-bomb"></i> استعادة جميع الإعدادات (المظهر والإشعارات)
+        </button>
+    </div>
+</section>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -3783,52 +3794,43 @@ function wrapText(startTag, endTag) {
     }
 }
 
-// ===============================
-// 🧠 خوارزمية التنسيق الذكي (تعتمد على علامة : - كعنوان)
-// ==============================
+// ================================
+// 🧠 خوارزمية التنسيق الذكي الفردية (للمنتج الواحد)
+// ================================
 window.smartFormatDetails = function() {
     const textarea = document.getElementById("editor-container");
     let text = textarea.value;
 
     if (!text.trim()) {
         if(typeof notify === 'function') notify("يرجى لصق التفاصيل أولاً!", "warning", "toast");
-        else alert("يرجى لصق التفاصيل أولاً!");
         return;
     }
 
-    // 1. تقسيم النص إلى سطور وتنظيفها
-    let lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    // --- التنظيف العميق للـ HTML ---
+    let cleanText = text
+        .replace(/<\/p>\s*<p>/gi, '\n')
+        .replace(/<\/?p[^>]*>/gi, '\n')
+        .replace(/<\/?div[^>]*>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/?li[^>]*>/gi, '\n')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n\s*\n/g, '\n');
+
+    let lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     let formattedLines = [];
+    const headingRegex = /\s*:\s*-/;
 
     lines.forEach(line => {
-        // تنظيف بداية السطر من الرموز العشوائية الناتجة عن النسخ
         line = line.replace(/^[-*•>✓✔]\s*/, '');
-
-        // 2. فحص هل السطر يحتوي على علامة النقطتين والشرطة (مع أو بدون مسافات)
-        // يبحث عن: ":-" أو " : - " أو ": -"
-        const headingRegex = /\s*:\s*-/;
-
         if (headingRegex.test(line)) {
-            // تقسيم السطر من عند العلامة
             let parts = line.split(headingRegex);
+            let titlePart = parts[0].trim().replace(/^\[|\]$/g, '');
+            let contentPart = parts.length > 1 ? parts.slice(1).join(':-').trim() : "";
             
-            let titlePart = parts[0].trim();
-            // النص قبل العلامة (سيكون عنوان الكارت)
-            let contentPart = parts.length > 1 ? parts.slice(1).join(':-').trim() : ""; // النص بعد العلامة (إن وجد)
-
-            // تنظيف الأقواس لو كانت موجودة مسبقاً لمنع تكرارها [[عنوان]]
-            titlePart = titlePart.replace(/^\[|\]$/g, '');
-
-            // إضافة مسافة فارغة قبل الكارت الجديد لترتيب الشكل، ووضع العنوان بين أقواس
             formattedLines.push(`\n[${titlePart}]`);
-
-            // إذا كان هناك نص مكتوب بعد العلامة في نفس السطر، ننزله كسطر مواصفات تحته
-            if (contentPart) {
-                formattedLines.push(contentPart);
-            }
+            if (contentPart) formattedLines.push(contentPart);
         } else {
-            // 3. الأسطر العادية (مواصفات فرعية)
-            // ضمان وجود مسافة قبل وبعد النقطتين العادية (بدون شرطة) لكي يقرأها ويلونها تطبيق العميل
             if (line.includes(':') && !line.includes(' : ')) {
                 line = line.replace(/\s*:\s*/g, ' : ');
             }
@@ -3836,17 +3838,161 @@ window.smartFormatDetails = function() {
         }
     });
 
-    // 4. إعادة النص المنسق إلى المربع
     textarea.value = formattedLines.join('\n').trim();
 
-    // 5. تأثير بصري (ومضة خضراء) لإشعار المستخدم بنجاح التنسيق
     textarea.style.transition = "background-color 0.3s";
     textarea.style.backgroundColor = "#dcfce7"; 
     setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 600);
 
-    // إشعار النجاح
-    if(typeof notify === 'function') {
-        notify("تم تنسيق العناوين بناءً على علامة ( : - ) بنجاح ✨", "success", "toast");
+    if(typeof notify === 'function') notify("تم التنظيف من الأكواد وتنسيق العناوين بنجاح ✨", "success", "toast");
+};
+
+// ===============================
+// 🚀 دالة تطبيق التنسيق الذكي على جميع المنتجات دفعة واحدة (مع التنظيف العميق)
+// ================================
+window.applySmartFormatToAllProducts = async function() {
+    // 1. التأكد من صلاحيات المستخدم
+    if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول كمدير لتنفيذ هذا الإجراء.");
+    
+    // 2. رسالة تحذيرية قبل البدء
+    const confirmAction = await Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: "سيتم تنظيف نصوص جميع المنتجات من أكواد HTML المخفية، ثم تطبيق التنسيق الذكي عليها. يفضل أخذ نسخة احتياطية قبل البدء.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#22c55e',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'نعم، نظّف ونسّق!',
+        cancelButtonText: 'إلغاء'
+    });
+
+    if (!confirmAction.isConfirmed) return;
+
+    // 3. إظهار نافذة التحميل
+    Swal.fire({
+        title: 'جاري التنظيف والتنسيق...',
+        html: 'يرجى عدم إغلاق هذه الصفحة حتى تنتهي العملية.<br><br>المنتجات المحدثة: <b id="formatted-count">0</b>',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+        // 4. جلب جميع المنتجات من قاعدة البيانات
+        const snapshot = await db.collection("products").get();
+        
+        if (snapshot.empty) {
+            Swal.fire('تنبيه', 'لا توجد منتجات في قاعدة البيانات.', 'info');
+            return;
+        }
+
+        let batch = db.batch();
+        let currentBatchCount = 0;
+        let totalUpdatedCount = 0;
+
+        // --- دالة التنظيف والتنسيق الداخلي ---
+        const formatText = (text) => {
+            if (!text) return "";
+
+            // --- أ) مرحلة التنظيف العميق من أكواد HTML ---
+            let cleanText = text
+                // 1. تحويل فقرات HTML والفواصل إلى أسطر جديدة حقيقية
+                .replace(/<\/p>\s*<p>/gi, '\n')
+                .replace(/<\/?p[^>]*>/gi, '\n')
+                .replace(/<\/?div[^>]*>/gi, '\n')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/?li[^>]*>/gi, '\n') // تحويل القوائم لأسطر
+                .replace(/&nbsp;/gi, ' ')        // تحويل مسافات HTML إلى مسافات عادية
+                // 2. مسح أي أكواد HTML متبقية (مثل الألوان والخطوط العريضة)
+                .replace(/<[^>]+>/g, '')
+                // 3. دمج الأسطر الفارغة المتعددة في سطر واحد فقط
+                .replace(/\n\s*\n/g, '\n');
+
+            // --- ب) مرحلة التنسيق الذكي ---
+            let lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            let formattedLines = [];
+            const headingRegex = /\s*:\s*-/;
+
+            lines.forEach(line => {
+                // إزالة الشرطات والنقاط العشوائية من بداية السطر
+                line = line.replace(/^[-*•>✓✔]\s*/, '');
+                
+                // البحث عن علامة العنوان
+                if (headingRegex.test(line)) {
+                    let parts = line.split(headingRegex);
+                    let titlePart = parts[0].trim().replace(/^\[|\]$/g, '');
+                    let contentPart = parts.length > 1 ? parts.slice(1).join(':-').trim() : "";
+                    
+                    formattedLines.push(`\n[${titlePart}]`);
+                    if (contentPart) formattedLines.push(contentPart);
+                } else {
+                    // تظبيط المسافات حول النقطتين للمواصفات العادية
+                    if (line.includes(':') && !line.includes(' : ')) {
+                        line = line.replace(/\s*:\s*/g, ' : ');
+                    }
+                    formattedLines.push(line);
+                }
+            });
+            return formattedLines.join('\n').trim();
+        };
+
+        // 5. المرور على كل منتج
+        for (let doc of snapshot.docs) {
+            let data = doc.data();
+            let oldDetails = data.details || "";
+            
+            // تمرير النص القديم على دالة التنظيف والتنسيق
+            let newDetails = formatText(oldDetails);
+
+            // 6. التحقق: هل النص تغير فعلاً؟ (لكي لا نستهلك عمليات كتابة بلا داعٍ)
+            if (oldDetails !== newDetails) {
+                batch.update(doc.ref, { 
+                    details: newDetails,
+                    updatedAt: Date.now()
+                });
+                
+                currentBatchCount++;
+                totalUpdatedCount++;
+                
+                // تحديث العداد في الشاشة
+                document.getElementById('formatted-count').innerText = totalUpdatedCount;
+
+                // Firebase يسمح بـ 500 عملية في الـ Batch الواحد، سنرسل كل 400 للأمان
+                if (currentBatchCount === 400) {
+                    await batch.commit();
+                    batch = db.batch(); // فتح Batch جديد
+                    currentBatchCount = 0;
+                }
+            }
+        }
+
+        // 7. إرسال الدفعة الأخيرة
+        if (currentBatchCount > 0) {
+            await batch.commit();
+        }
+
+        // 8. إخبار التطبيق بوجود تحديث
+        if (totalUpdatedCount > 0) {
+            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+        }
+
+        // 9. رسالة النجاح
+        Swal.fire({
+            title: 'تمت العملية بنجاح! ✨',
+            text: `تم تنظيف وتنسيق تفاصيل (${totalUpdatedCount}) منتج من أكواد HTML المخفية.`,
+            icon: 'success',
+            confirmButtonText: 'ممتاز!'
+        });
+
+        loadInitialProducts();
+
+    } catch (error) {
+        console.error("خطأ أثناء التنظيف والتنسيق:", error);
+        Swal.fire({
+            title: 'حدث خطأ!',
+            text: error.message,
+            icon: 'error',
+            confirmButtonText: 'إغلاق'
+        });
     }
 };
 </script>
