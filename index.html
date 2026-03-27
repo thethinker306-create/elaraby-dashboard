@@ -4165,51 +4165,138 @@ async function downloadSellersBackup() {
     }
 }
 
+// ==========================================
+// 1. دوال مساعدة ذكية (ضعها خارج دالة السحب)
+// ==========================================
+
+// استنتاج كود اللون لعرضه في لوحة التحكم
+function guessColorHex(colorName) {
+    if(!colorName) return '#cccccc';
+    const colorMap = {
+        'أسود': '#000000', 'اسود': '#000000', 'بلاك': '#000000',
+        'أبيض': '#ffffff', 'ابيض': '#ffffff', 'وايت': '#ffffff',
+        'أحمر': '#ff0000', 'احمر': '#ff0000', 'نبيتي': '#800000',
+        'أزرق': '#0000ff', 'ازرق': '#0000ff', 'كحلي': '#000080', 'سماوي': '#87ceeb',
+        'فضي': '#c0c0c0', 'سيلفر': '#c0c0c0', 'رمادي': '#808080', 'استانلس': '#e0e0e0',
+        'ذهبي': '#ffd700', 'جولد': '#ffd700', 'شامبين': '#f7e7ce',
+        'أخضر': '#008000', 'اخضر': '#008000', 'زيتي': '#556b2f',
+        'بني': '#8b4513', 'هافان': '#d2691e', 'بيج': '#f5f5dc',
+        'أصفر': '#ffff00', 'اصفر': '#ffff00',
+        'برتقالي': '#ffa500', 'وردي': '#ffc0cb', 'بينك': '#ffc0cb', 'روز': '#ff007f', 'بنفسجي': '#800080'
+    };
+    for (let key in colorMap) { if (colorName.includes(key)) return colorMap[key]; }
+    return '#cccccc'; 
+}
+
+// تحويل الأرقام العربية إلى إنجليزية لاصطياد السعر
+function convertArabicToEnglishNumbers(str) {
+    if(!str) return "";
+    return str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\d]/g, '');
+}
+
+// استخراج اسم اللون من عنوان المنتج بذكاء
+function extractColorFromTitle(title) {
+    if(!title) return null;
+    const possibleColors =['أسود','اسود','أبيض','ابيض','أحمر','احمر','أزرق','ازرق','فضي','سيلفر','رمادي','ذهبي','جولد','أخضر','اخضر','بني','بيج','أصفر','اصفر','برتقالي','وردي','بينك','روز','بنفسجي','استانلس','كحلي','سماوي','نبيتي', 'شامبين'];
+    for (let pc of possibleColors) {
+        // نبحث عن الكلمة ككلمة مستقلة أو جزء من العنوان
+        if (title.includes(pc)) return pc;
+    }
+    return null;
+}
+
+// ==========================================
+// 2. الدالة الرئيسية (Scraping Engine)
+// ==========================================
 async function fetchProductData() {
     const inputVal = document.getElementById("productId").value.trim();
     if (!inputVal) {
-        Swal.fire('تنبيه', 'يرجى كتابة كود المنتج أو لصق رابط المنتج أولاً!', 'warning');
+        Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج أولاً!', 'warning');
         return;
     }
 
     Swal.fire({
-        title: 'جاري السحب الاحترافي...',
-        html: 'يتم الآن استخراج السعر الدقيق، إعداد الألوان، وتصفية المواصفات بدون تكرار...',
+        title: 'جاري البحث الشامل...',
+        html: 'يتم الآن تحليل الكود، صيد الألوان من الفروع، وجلب السعر والمواصفات...',
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
 
     try {
-        let targetUrl = inputVal;
-        if (!inputVal.startsWith('http')) {
-            targetUrl = `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
-        }
-        
+        let isDirectUrl = inputVal.startsWith('http');
+        let targetUrl = isDirectUrl ? inputVal : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
         let proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        
         let response = await fetch(proxyUrl);
         let htmlText = await response.text();
         let parser = new DOMParser();
         let doc = parser.parseFromString(htmlText, "text/html");
 
-        // معالجة إعادة التوجيه لصفحة المنتج
-        const firstProductLink = doc.querySelector('.product-item-link')?.href;
-        const isProductPage = doc.querySelector('.product-info-main');
+        let extractedColors =[];
+        let mainProductDoc = doc; // المستند الذي سنسحب منه التفاصيل الرئيسية
+        let mainProductLink = "";
 
-        if (firstProductLink && !isProductPage && !inputVal.startsWith('http')) {
-            proxyUrl = `https://corsproxy.io/?${encodeURIComponent(firstProductLink)}`;
-            response = await fetch(proxyUrl);
-            htmlText = await response.text();
-            doc = parser.parseFromString(htmlText, "text/html");
+        // ==========================================
+        // 🛠️ المرحلة الأولى: تحليل صفحة البحث (صيد الألوان المنفصلة)
+        // ==========================================
+        const searchResultsList = doc.querySelector('.products.list.items.product-items');
+        
+        // إذا كنا في صفحة بحث ويوجد كروت منتجات
+        if (!isDirectUrl && searchResultsList) {
+            const productCards = searchResultsList.querySelectorAll('.product-item-info');
+            
+            productCards.forEach((card, index) => {
+                const titleEl = card.querySelector('.product-item-link');
+                const imgEl = card.querySelector('.product-image-photo');
+                
+                if (titleEl && imgEl) {
+                    const title = titleEl.innerText.trim();
+                    const link = titleEl.href;
+                    // جلب الصورة الأصلية وإزالة الكاش
+                    let imgUrl = imgEl.getAttribute('data-src') || imgEl.getAttribute('src');
+                    imgUrl = imgUrl ? imgUrl.replace(/\/cache\/.*?\//g, '/') : "";
+
+                    // حفظ رابط أول منتج لندخل إليه ونسحب منه السعر والتفاصيل لاحقاً
+                    if (index === 0) mainProductLink = link;
+
+                    // استخراج اللون من العنوان
+                    let foundColor = extractColorFromTitle(title);
+                    if (foundColor && imgUrl) {
+                        extractedColors.push({ name: foundColor, url: imgUrl });
+                    }
+                }
+            });
+
+            // الدخول إلى صفحة أول منتج لسحب السعر والتفاصيل والمزيد من الصور
+            if (mainProductLink) {
+                let mainProxyUrl = `https://corsproxy.io/?${encodeURIComponent(mainProductLink)}`;
+                let mainRes = await fetch(mainProxyUrl);
+                let mainHtml = await mainRes.text();
+                mainProductDoc = parser.parseFromString(mainHtml, "text/html");
+            }
+        } 
+        // إذا كان رابط مباشر لمنتج، نحاول سحب اللون من عنوانه
+        else if (isDirectUrl) {
+            const title = mainProductDoc.querySelector('h1.page-title')?.innerText.trim() || "";
+            let foundColor = extractColorFromTitle(title);
+            let firstImg = mainProductDoc.querySelector('.product.media img')?.getAttribute('src') || "";
+            firstImg = firstImg.replace(/\/cache\/.*?\//g, '/');
+            if(foundColor && firstImg) {
+                extractedColors.push({ name: foundColor, url: firstImg });
+            }
         }
 
+        // إزالة الألوان المكررة بناءً على الاسم
+        extractedColors = extractedColors.filter((v, i, a) => a.findIndex(t => (t.name === v.name)) === i);
+
         // ==========================================
-        // 1. استخراج الاسم والسعر (بدقة شديدة)
+        // 🛠️ المرحلة الثانية: سحب البيانات الأساسية (من صفحة المنتج)
         // ==========================================
-        const fetchedName = doc.querySelector('h1.page-title')?.innerText.trim() || "";
-        
-        // خوارزمية جلب السعر من عدة مصادر محتملة لتفادي التحديثات
+        const fetchedName = mainProductDoc.querySelector('h1.page-title')?.innerText.trim() || "";
         let fetchedPrice = "";
-        const priceSelectors =[
+
+        // صيد السعر بدقة
+        const priceSelectors = [
             'meta[property="product:price:amount"]',
             '[data-price-type="finalPrice"] .price',
             '.special-price .price',
@@ -4218,23 +4305,22 @@ async function fetchProductData() {
         ];
 
         for (let selector of priceSelectors) {
-            let el = doc.querySelector(selector);
+            let el = mainProductDoc.querySelector(selector);
             if (el) {
-                // جلب القيمة من content أو innerText
                 let val = el.getAttribute('content') || el.innerText;
-                val = val.replace(/[^0-9.]/g, ''); // تنظيف لترك الأرقام فقط
-                if (val && Number(val) > 0) { 
-                    fetchedPrice = val; 
-                    break; 
+                let engNum = convertArabicToEnglishNumbers(val); 
+                if (engNum && parseInt(engNum) > 0) {
+                    fetchedPrice = engNum;
+                    break;
                 }
             }
         }
 
         // ==========================================
-        // 2. سحب الصور الأساسية بجودة عالية
+        // 🛠️ المرحلة الثالثة: سحب صور المعرض الأساسية
         // ==========================================
-        let imgUrls =[];
-        const scripts = doc.querySelectorAll('script[type="text/x-init"], script[type="text/x-magento-init"]');
+        let allGalleryImages =[];
+        const scripts = mainProductDoc.querySelectorAll('script[type="text/x-init"], script[type="text/x-magento-init"]');
         
         scripts.forEach(script => {
             if (script.textContent.includes('mage/gallery/gallery')) {
@@ -4243,113 +4329,61 @@ async function fetchProductData() {
                     const images = config['[data-gallery-role=gallery-placeholder]']['mage/gallery/gallery']['data'];
                     images.forEach(img => {
                         let fullImg = img.full || img.img;
-                        fullImg = fullImg.replace(/\/cache\/.*?\//g, '/');
-                        imgUrls.push(fullImg);
+                        if(fullImg) allGalleryImages.push(fullImg.replace(/\/cache\/.*?\//g, '/'));
                     });
                 } catch (e) {}
             }
         });
 
-        if (imgUrls.length === 0) {
-            doc.querySelectorAll('.product.media img').forEach(img => {
+        if (allGalleryImages.length === 0) {
+            mainProductDoc.querySelectorAll('.product.media img').forEach(img => {
                 let src = img.getAttribute('data-src') || img.getAttribute('src');
                 if (src && src.includes('/media/catalog/product/')) {
-                    src = src.replace(/\/cache\/.*?\//g, '/');
-                    imgUrls.push(src);
+                    allGalleryImages.push(src.replace(/\/cache\/.*?\//g, '/'));
                 }
             });
         }
-        imgUrls = [...new Set(imgUrls)].slice(0, 8); // أقصى حد 8 صور
+        allGalleryImages = [...new Set(allGalleryImages)]; 
+
+        // تصفية الصور الأساسية (نأخذ أول 3 أو 4 صور فقط لعدم زحمة المنتج)
+        let finalMainImages = allGalleryImages.slice(0, 4);
 
         // ==========================================
-        // 3. الخوارزمية الذكية للألوان 
+        // ☁️ المرحلة الرابعة: الرفع السحابي (Cloudinary)
         // ==========================================
-        let extractedColors =[]; 
-
-        // أ) البحث في خصائص الألوان (Swatches)
-        scripts.forEach(script => {
-            if (script.textContent.includes('Magento_Swatches/js/swatch-renderer')) {
-                try {
-                    const config = JSON.parse(script.textContent);
-                    const swatchData = config['[data-role=swatch-options]']['Magento_Swatches/js/swatch-renderer']['jsonConfig'];
-                    if (swatchData && swatchData.attributes) {
-                        for (let attrId in swatchData.attributes) {
-                            const attr = swatchData.attributes[attrId];
-                            if (attr.code === 'color' || attr.code === 'color_family') {
-                                attr.options.forEach(option => {
-                                    let cImg = swatchData.images?.[option.id]?.[0]?.full?.replace(/\/cache\/.*?\//g, '/') || imgUrls[0];
-                                    extractedColors.push({ name: option.label, url: cImg });
-                                });
-                            }
-                        }
-                    }
-                } catch (e) {}
-            }
-        });
-
-        // ب) البحث في جدول المواصفات (إذا لم يكن هناك Swatches)
-        if (extractedColors.length === 0) {
-            const specRows = doc.querySelectorAll('table#product-attribute-specs-table tr');
-            for (let row of specRows) {
-                if (row.innerText.includes('اللون')) {
-                    const colorName = row.querySelector('td')?.innerText.trim();
-                    if (colorName) extractedColors.push({ name: colorName, url: imgUrls[0] || "" });
-                    break;
-                }
-            }
-        }
-
-        // ج) البحث في العنوان كحل أخير
-        if (extractedColors.length === 0 && fetchedName) {
-            const possibleColors =['أسود','اسود','أبيض','ابيض','أحمر','احمر','أزرق','ازرق','فضي','سيلفر','رمادي','ذهبي','جولد','أخضر','اخضر','بني','بيج','أصفر','اصفر','برتقالي','وردي','بينك','روز','بنفسجي','استانلس','كحلي','سماوي','نبيتي'];
-            for (let pc of possibleColors) {
-                if (fetchedName.includes(pc)) {
-                    extractedColors.push({ name: pc, url: imgUrls[0] || "" });
-                    break;
-                }
-            }
-        }
-
-        // إزالة الألوان المكررة بناءً على الاسم
-        extractedColors = extractedColors.filter((v, i, a) => a.findIndex(t => (t.name === v.name)) === i);
-
-        // ==========================================
-        // 4. رفع الصور على Cloudinary
-        // ==========================================
-        let cloudUrls =[];
+        let cloudMainUrls =[];
         const uploadToCloudinary = async (url) => {
             if(!url) return null;
             try {
                 const fd = new FormData();
                 fd.append("file", url);
-                fd.append("upload_preset", "elaraby_broducts"); // غيرها إذا تغير البريسيت
+                fd.append("upload_preset", "elaraby_broducts"); 
                 const res = await fetch(`https://api.cloudinary.com/v1_1/dkuow8vxw/image/upload`, { method: "POST", body: fd });
                 const d = await res.json();
                 return d.secure_url ? d.secure_url : null;
             } catch(e) { return null; }
         };
 
-        // رفع الصور الأساسية
-        for (let url of imgUrls) {
+        Swal.update({ html: 'جاري رفع الصور الأساسية...' });
+        for (let url of finalMainImages) {
             const secureUrl = await uploadToCloudinary(url);
-            if (secureUrl) cloudUrls.push(secureUrl);
+            if (secureUrl) cloudMainUrls.push(secureUrl);
         }
 
-        // إعداد وتفريغ قائمة الألوان السابقة في لوحة التحكم
-        currentColors =[]; 
+        // تفريغ الألوان وتجهيزها
+        currentColors =[];
 
-        // رفع صور الألوان الإضافية وتخزينها
         if (extractedColors.length > 0) {
-            Swal.update({ html: `تم السحب... جاري رفع <b>${extractedColors.length}</b> ألوان على الكلاود...` });
-            
+            Swal.update({ html: `جاري تخصيص ورفع صور ${extractedColors.length} ألوان مختلفة...` });
             for (let colorObj of extractedColors) {
-                // إذا كانت صورة اللون هي نفسها أول صورة أساسية، لا ترفعها مرة أخرى لتوفير الوقت
-                let secureColorUrl = (colorObj.url === imgUrls[0] && cloudUrls[0]) ? cloudUrls[0] : await uploadToCloudinary(colorObj.url);
-                
+                // تجنب الرفع المزدوج إذا كانت صورة اللون هي نفس الصورة الرئيسية
+                let secureColorUrl = (colorObj.url === finalMainImages[0] && cloudMainUrls[0]) 
+                                     ? cloudMainUrls[0] 
+                                     : await uploadToCloudinary(colorObj.url);
                 if (secureColorUrl) {
                     currentColors.push({
                         name: colorObj.name,
-                        code: guessColorHex(colorObj.name), // الدالة المساعدة لاستنتاج كود اللون
+                        code: guessColorHex(colorObj.name),
                         image: secureColorUrl
                     });
                 }
@@ -4357,31 +4391,24 @@ async function fetchProductData() {
         }
 
         // ==========================================
-        // 5. استخراج "عن المنتج" (حصرياً وبدون تكرار)
+        // 🛠️ المرحلة الخامسة: استخراج المواصفات بدون تكرار
         // ==========================================
         let fetchedDetails = "";
-        // استهداف قسم الوصف الأساسي فقط
-        const descSection = doc.querySelector('.product.attribute.description .value') || doc.querySelector('#description');
+        const descSection = mainProductDoc.querySelector('.product.attribute.description .value') || mainProductDoc.querySelector('#description');
         
         if (descSection) {
-            // استنساخ العنصر حتى لا نؤثر على الـ DOM الأصلي
             const cloneDesc = descSection.cloneNode(true);
             
-            // حذف أي جداول داخل الوصف (لأنها غالباً تحتوي على المواصفات المكررة)
+            // حذف الجداول لعدم تكرار المواصفات!
             cloneDesc.querySelectorAll('table').forEach(t => t.remove());
-
-            // تنسيق القوائم والفقرات
             cloneDesc.querySelectorAll('li').forEach(li => li.prepend('• '));
             cloneDesc.querySelectorAll('p, li, br, h1, h2, h3').forEach(el => el.append('\n'));
 
-            // استخراج النص النظيف
-            let rawText = cloneDesc.innerText
-                .replace(/html-body.*?\{.*?\}/gs, '') // حذف أكواد CSS المخفية
-                .trim();
+            let rawText = cloneDesc.innerText.replace(/html-body.*?\{.*?\}/gs, '').trim();
 
-            // فصل السطور، تنظيفها، واستخدام Set لمنع التكرار نهائياً (Unique Lines)
+            // مسح أي سطر مكرر باستخدام Set
             let linesArray = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
-            let uniqueLines = [...new Set(linesArray)]; // السر هنا: Set تمنع تكرار أي سطر
+            let uniqueLines = [...new Set(linesArray)]; 
 
             if (uniqueLines.length > 0) {
                 fetchedDetails = `[عن المنتج]\n` + uniqueLines.join('\n');
@@ -4389,92 +4416,32 @@ async function fetchProductData() {
         }
 
         // ==========================================
-        // 6. حقن البيانات في واجهة لوحة التحكم
+        // 🎯 المرحلة السادسة: حقن البيانات في الواجهة
         // ==========================================
         document.getElementById("name").value = fetchedName;
-        document.getElementById("price").value = fetchedPrice; // تم حل مشكلة السعر
-        document.getElementById("images").value = cloudUrls.join(",");
-        document.getElementById("editor-container").value = fetchedDetails; // تم حل مشكلة التكرار
+        document.getElementById("price").value = fetchedPrice; 
+        document.getElementById("images").value = cloudMainUrls.join(","); 
+        document.getElementById("editor-container").value = fetchedDetails;
 
-        // تحديث واجهة الكروت والصور
         if(typeof syncPreviews === 'function') syncPreviews();
         
-        // تحديث قسم الألوان ليظهر فوراً للمستخدم
-        if(typeof syncColors === 'function') syncColors();
+        // الأهم: رسم الألوان في قسم روابط الألوان
+        if(typeof syncColors === 'function') syncColors(); 
         
-        // تشغيل التنسيق الذكي
         if(typeof smartFormatDetails === 'function') smartFormatDetails();
 
         Swal.fire({ 
             icon: 'success', 
-            title: 'تمت العملية باحترافية!', 
-            text: extractedColors.length > 0 ? `تم إضافة السعر، التفاصيل (بدون تكرار)، و ${extractedColors.length} لون بنجاح.` : 'تم إضافة بيانات المنتج بدقة.',
+            title: 'تم السحب بنجاح!', 
+            text: extractedColors.length > 0 ? `تم جلب السعر الدقيق وإضافة ${extractedColors.length} لون بنجاح.` : 'تم إضافة بيانات المنتج الأساسية بدقة.',
             timer: 3500, 
             showConfirmButton: false 
         });
 
     } catch (error) {
-        console.error(error);
-        Swal.fire('خطأ', 'تعذر جلب البيانات، تأكد من صحة الرابط أو الكود.', 'error');
+        console.error("Scraping Error:", error);
+        Swal.fire('خطأ', 'تعذر جلب البيانات. تأكد من صحة الكود أو الرابط.', 'error');
     }
-}
-
-// دالة مساعدة لاستنتاج كود اللون من اسمه العربي
-function guessColorHex(colorName) {
-    const colorMap = {
-        'أسود': '#000000', 'اسود': '#000000', 'بلاك': '#000000',
-        'أبيض': '#ffffff', 'ابيض': '#ffffff', 'وايت': '#ffffff',
-        'أحمر': '#ff0000', 'احمر': '#ff0000', 'ريد': '#ff0000', 'نبيتي': '#800000',
-        'أزرق': '#0000ff', 'ازرق': '#0000ff', 'كحلي': '#000080', 'سماوي': '#87ceeb',
-        'فضي': '#c0c0c0', 'سيلفر': '#c0c0c0', 'رمادي': '#808080', 'استانلس': '#e0e0e0',
-        'ذهبي': '#ffd700', 'جولد': '#ffd700', 'شامبين': '#f7e7ce',
-        'أخضر': '#008000', 'اخضر': '#008000', 'زيتي': '#556b2f',
-        'بني': '#8b4513', 'هافان': '#d2691e', 'بيج': '#f5f5dc',
-        'أصفر': '#ffff00', 'اصفر': '#ffff00',
-        'برتقالي': '#ffa500', 'أورانج': '#ffa500',
-        'وردي': '#ffc0cb', 'بينك': '#ffc0cb', 'روز': '#ff007f',
-        'بنفسجي': '#800080', 'موف': '#dda0dd'
-    };
-    
-    for (let key in colorMap) {
-        if (colorName.includes(key)) return colorMap[key];
-    }
-    return '#cccccc'; // لون افتراضي إذا لم يتم التعرف عليه
-}
-
-function smartFormatDetails() {
-    const textarea = document.getElementById("editor-container");
-    let text = textarea.value;
-
-    if (!text.trim()) return;
-
-    // 1. تنظيف النص من أي بقايا HTML خفية
-    let cleanText = text.replace(/<[^>]+>/g, '');
-
-    // 2. محاولة فصل الجمل الملتصقة (التي تبدأ بكلمات تقنية أو رموز)
-    // نبحث عن أماكن مثل "تقنيةDolby" ونحولها لـ "تقنية\nDolby"
-    cleanText = cleanText.replace(/([a-z])([A-Z])/g, '$1\n$2'); // فصل الإنجليزي الملتصق
-    cleanText = cleanText.replace(/(\D)(\d+)/g, '$1 $2'); // فصل الأرقام عن الكلام
-    
-    let lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-    let formattedLines = [];
-
-    lines.forEach(line => {
-        // إذا كان السطر يحتوي على كلمات مثل (إمكانية، تقنية، خاصية، مجهز بـ) نجعله في سطر جديد
-        if (line.includes('إمكانية') || line.includes('تقنية') || line.includes('دقة')) {
-            formattedLines.push('\n' + line);
-        } else if (line.startsWith('-') || line.startsWith('*')) {
-            formattedLines.push(line);
-        } else {
-            formattedLines.push(line);
-        }
-    });
-
-    textarea.value = formattedLines.join('\n').replace(/\n\s*\n/g, '\n');
-    
-    // تنبيه بسيط للمستخدم
-    textarea.style.backgroundColor = "#f0fdf4";
-    setTimeout(() => { textarea.style.backgroundColor = "#fff"; }, 500);
 }
 </script>
 </body>
