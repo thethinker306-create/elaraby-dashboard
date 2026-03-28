@@ -331,6 +331,89 @@
     width: 100%;
     overflow: hidden; /* قص أي زيادة */
 }
+/* تصميم حاوية القائمة المنسدلة */
+.actions-menu-container {
+    position: relative;
+    display: inline-block;
+}
+
+/* زر التحريك (الذي يظهر عليه الـ 3 نقاط) */
+.actions-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.actions-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+/* القائمة المخفية */
+.dropdown-content {
+    display: none;
+    position: absolute;
+    right: 0; /* للظهور من جهة اليمين في الواجهة العربية */
+    top: 100%;
+    background-color: white;
+    min-width: 180px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    z-index: 9999;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    margin-top: 5px;
+    animation: fadeInSlide 0.2s ease;
+}
+
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* عناصر القائمة */
+.dropdown-item {
+    padding: 10px 15px;
+    font-size: 12px;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    text-align: right;
+    border-bottom: 1px solid #f8fafc;
+}
+
+.dropdown-item:last-child { border-bottom: none; }
+
+.dropdown-item:hover {
+    background-color: #f1f5f9;
+    color: #1a73e8;
+}
+
+.dropdown-item i {
+    width: 16px;
+    text-align: center;
+}
+
+/* تلوين خاص للحظر والحذف */
+.dropdown-item.danger:hover {
+    background-color: #fef2f2;
+    color: #ef4444;
+}
+
+/* فئة الإظهار */
+.show-actions { display: block !important; }
 
     </style>
 </head>
@@ -3369,31 +3452,43 @@ function loadSellers() {
             const statusText = d.isActive ? 'نشط ✅' : 'محظور ⛔';
             const toggleBtnText = d.isActive ? 'حظر' : 'تفعيل';
             const toggleBtnColor = d.isActive ? '#f59e0b' : '#10b981';
-// داخل loadSellers ... الجزء الخاص بـ return
-            return `
-            <tr class="seller-row">
-                <td style="padding:10px;">${d.name}</td>
-                <td style="padding:10px; font-weight:bold; color:#1a73e8;">${d.username}</td>
-                <td style="padding:10px;">${d.branch}</td>
-                <td style="padding:10px; font-family:monospace; background:#f1f5f9;">${d.password}</td>
-                <td style="padding:10px; color:${statusColor}; font-weight:bold;">${statusText}</td>
-                <td style="padding:10px; display:flex; justify-content:center; gap:5px;">
-                    <!-- زر التفعيل/الحظر -->
-                    <button onclick="toggleSellerStatus('${doc.id}', ${!d.isActive})" style="background:${toggleBtnColor}; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px;">
-                        ${toggleBtnText}
-                    </button>
-                    
-                    <!-- زر التعديل (الجديد) -->
-                    <button onclick="prepareEditSeller('${doc.id}', '${d.name}', '${d.username}', '${d.branch}', '${d.password}')" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px;" title="تعديل البيانات">
-                        <i class="fas fa-edit"></i>
-                    </button>
+// داخل loadSellers ... الجزء الخاص بـ// داخل دالة loadSellers، استبدل الجزء الخاص بـ return `...` بهذا الكود:
+return `
+<tr class="seller-row">
+    <td style="padding:10px;">
+        <!-- بداية القائمة المنسدلة الاحترافية -->
+        <div class="actions-menu-container">
+            <button class="actions-btn" onclick="toggleActionsMenu(event, this)">
+                <i class="fas fa-ellipsis-h"></i> 
+            </button>
+            <div class="dropdown-content">
+                <div class="dropdown-item" onclick="verifySellerAccount('${d.username}', '${d.password}')">
+                    <i class="fas fa-check-double" style="color:#3b82f6;"></i> فحص الحساب
+                </div>
+                <div class="dropdown-item" onclick="shareSellerCredentials('${d.name}', '${d.username}', '${d.password}')">
+                    <i class="fab fa-whatsapp" style="color:#25D366;"></i> مشاركة البيانات
+                </div>
+                <div class="dropdown-item" onclick="prepareEditSeller('${doc.id}', '${d.name}', '${d.username}', '${d.branch}', '${d.password}')">
+                    <i class="fas fa-edit" style="color:#f59e0b;"></i> تعديل البيانات
+                </div>
+                <div class="dropdown-item" onclick="toggleSellerStatus('${doc.id}', ${!d.isActive})">
+                    <i class="fas ${d.isActive ? 'fa-user-slash' : 'fa-user-check'}" style="color:#64748b;"></i> 
+                    ${d.isActive ? 'حظر الحساب' : 'تفعيل الحساب'}
+                </div>
+                <div class="dropdown-item danger" onclick="deleteSeller('${doc.id}')">
+                    <i class="fas fa-trash-alt" style="color:#ef4444;"></i> حذف نهائي
+                </div>
+            </div>
+        </div>
+    </td>
 
-                    <!-- زر الحذف -->
-                    <button onclick="deleteSeller('${doc.id}')" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:11px;" title="حذف نهائي">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>`;
+    <td style="padding:10px;">${d.name}</td>
+    <td style="padding:10px; font-weight:bold; color:#1a73e8;">${d.username}</td>
+    <td style="padding:10px;">${d.branch}</td>
+    <td style="padding:10px; font-family:monospace; background:#f1f5f9;">${d.password}</td>
+    <td style="padding:10px; color:${statusColor}; font-weight:bold;">${statusText}</td>
+</tr>`;
+
         }).join('');
 
         tbody.innerHTML = rowsHTML;
@@ -4569,6 +4664,105 @@ async function fetchProductData() {
         Swal.fire('خطأ', 'تعذر جلب البيانات. تأكد من صحة الكود أو الرابط.', 'error');
     }
 }
+
+// وظيفة إرسال بيانات البائع عبر واتساب
+function shareSellerCredentials(name, username, password) {
+    // تنسيق الرسالة الترحيبية
+    const welcomeMessage = `*أهلاً بك يا أستاذ ${name} في  "اعرف منتجك 2026" 🌟*
+
+يسعدنا انضمامك إلينا. إليك بيانات تسجيل الدخول الخاصة بك للوصول إلى التطبيق:
+
+👤 *اسم المستخدم:* ${username}
+🔐 *كلمة المرور:* ${password}
+
+🔗 *رابط التطبيق:*
+https://elaraby-products.blogspot.com
+
+نتمنى لك التوفيق في عملك! 🚀`;
+
+    // ترميز الرسالة لتناسب روابط الويب
+    const encodedMessage = encodeURIComponent(welcomeMessage);
+    
+    // فتح رابط واتساب
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
+}
+// وظيفة فحص سلامة حساب البائع تقنياً
+async function verifySellerAccount(username, password) {
+    const sellerEmail = `${username.toLowerCase()}@elaraby.com`;
+
+    // إظهار تنبيه انتظار
+    Swal.fire({
+        title: 'جاري الفحص...',
+        html: `يتم الآن التحقق من الحساب: <b>${username}</b> عبر سيرفرات Firebase`,
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+        // محاولة تسجيل دخول تجريبية عبر التطبيق الثانوي (لحماية جلسة الأدمن)
+        const userCredential = await secondaryAuth.signInWithEmailAndPassword(sellerEmail, password);
+        
+        // إذا نجح تسجيل الدخول، نقوم بتسجيل الخروج فوراً من التطبيق الثانوي
+        await secondaryAuth.signOut();
+
+        // إظهار نتيجة النجاح
+        Swal.fire({
+            icon: 'success',
+            title: 'الحساب سليم ✅',
+            text: `تم التحقق: البريد الإلكتروني وكلمة المرور متطابقان مع سجلات Firebase بنجاح.`,
+            confirmButtonColor: '#10b981'
+        });
+
+    } catch (error) {
+        console.error("Verification Error:", error);
+        
+        let errorMsg = "حدث خطأ غير متوقع";
+        let errorIcon = "error";
+
+        // تحليل نوع الخطأ البرمجي
+        if (error.code === 'auth/user-not-found') {
+            errorMsg = "❌ الحساب غير موجود في نظام الـ Auth (يجب إعادة إنشاء الحساب).";
+        } else if (error.code === 'auth/wrong-password') {
+            errorMsg = "❌ كلمة المرور المخزنة لا تطابق كلمة المرور في نظام الـ Auth.";
+        } else if (error.code === 'auth/invalid-email') {
+            errorMsg = "❌ صيغة اسم المستخدم غير صالحة.";
+        } else {
+            errorMsg = "❌ فشل الفحص: " + error.message;
+        }
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'مشكلة في الحساب ⚠️',
+            text: errorMsg,
+            confirmButtonColor: '#ef4444'
+        });
+    }
+}
+
+// وظيفة فتح/إغلاق القائمة
+function toggleActionsMenu(event, btn) {
+    event.stopPropagation(); // منع وصول الحدث للعناصر الأب
+    
+    // إغلاق أي قائمة أخرى مفتوحة أولاً
+    document.querySelectorAll('.dropdown-content').forEach(menu => {
+        if (menu !== btn.nextElementSibling) {
+            menu.classList.remove('show-actions');
+        }
+    });
+
+    // فتح القائمة الخاصة بالزر الذي تم الضغط عليه
+    const menu = btn.nextElementSibling;
+    menu.classList.toggle('show-actions');
+}
+
+// إغلاق القوائم عند الضغط في أي مكان في الصفحة
+window.addEventListener('click', function() {
+    document.querySelectorAll('.dropdown-content').forEach(menu => {
+        menu.classList.remove('show-actions');
+    });
+});
 </script>
 </body>
 </html>
