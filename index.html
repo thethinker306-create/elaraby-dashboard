@@ -1295,6 +1295,133 @@ async function loadInitialProducts() {
     }
 }
 
+// ===========================
+// 🗑️ منظومة الحذف من Cloudinary
+// ===========================
+
+const CLOUDINARY_CONFIG = {
+    cloudName: "dkuow8vxw",
+    apiKey: "449634242413726",   
+    // ⚠️ استبدل هذا
+    apiSecret: "Rq3cHi2e8S1bR9njs7E_06e86ao"
+    // ⚠️ استبدل هذا
+};
+
+// استخراج المعرف للحذف
+function getCloudinaryPublicId(url) {
+    try {
+        if (!url.includes('cloudinary.com')) return null;
+        const parts = url.split('/upload/');
+        if (parts.length < 2) return null;
+        let pathAfterUpload = parts[1].replace(/^v\d+\//, '');
+        return pathAfterUpload.substring(0, pathAfterUpload.lastIndexOf('.'));
+    } catch (e) { return null; }
+}
+
+// إنشاء التوقيع المشفر الآمن للسيرفر
+async function generateSHA1(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// دالة الاتصال بكلاوديناري للحذف
+async function deleteFromCloudinary(url) {
+    const publicId = getCloudinaryPublicId(url);
+    if (!publicId) return false;
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${CLOUDINARY_CONFIG.apiSecret}`;
+    
+    try {
+        const signature = await generateSHA1(stringToSign);
+        const formData = new FormData();
+        formData.append("public_id", publicId);
+        formData.append("api_key", CLOUDINARY_CONFIG.apiKey);
+        formData.append("timestamp", timestamp);
+        formData.append("signature", signature);
+
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/image/destroy`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        return data.result === "ok";
+    } catch (e) {
+        console.error("خطأ في الحذف من كلاوديناري:", e);
+        return false;
+    }
+}
+
+// ==========================================
+// استبدال الدوال القديمة لتعمل مع رسائل التأكيد والسيرفر
+// ==========================================
+
+// دالة مسح الصور الأساسية
+async function popImg(i) { 
+    let arr = document.getElementById("images").value.split(","); 
+    const urlToDelete = arr[i].trim();
+
+    const confirmDelete = await Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: "سيتم مسح الصورة وحذفها نهائياً من سيرفر (Cloudinary) لتوفير المساحة!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذفها نهائياً',
+        cancelButtonText: 'إلغاء'
+    });
+
+    if (!confirmDelete.isConfirmed) return; // التوقف إذا ضغط المستخدم إلغاء
+
+    notify("جاري الحذف من السيرفر...", "info", "toast");
+
+    // الحذف من السيرفر الفعلي
+    if (urlToDelete.includes('cloudinary.com')) {
+        await deleteFromCloudinary(urlToDelete);
+    }
+
+    // الحذف من الواجهة
+    arr.splice(i, 1); 
+    document.getElementById("images").value = arr.join(","); 
+    syncPreviews(); 
+    
+    notify("تم حذف الصورة بنجاح!", "success", "toast");
+}
+
+// دالة مسح الألوان
+async function removeColor(index) { 
+    const colorObj = currentColors[index];
+
+    const confirmDelete = await Swal.fire({
+        title: 'حذف اللون؟',
+        text: `هل تريد حذف اللون (${colorObj.name}) وصورته نهائياً من السيرفر؟`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'نعم، احذفه',
+        cancelButtonText: 'إلغاء'
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    notify("جاري إزالة اللون وحذف صورته...", "info", "toast");
+
+    // الحذف من السيرفر الفعلي
+    if (colorObj.image && colorObj.image.includes('cloudinary.com')) {
+        await deleteFromCloudinary(colorObj.image);
+    }
+
+    // الحذف من الواجهة
+    currentColors.splice(index, 1); 
+    syncColors(); 
+    
+    notify("تم حذف اللون بنجاح!", "success", "toast");
+}
+
 // استدعاء الدالة عند البدء بدلاً من السناب شوت المفتوح
 loadInitialProducts();
 
@@ -1416,7 +1543,6 @@ document.getElementById("editor-container").value = "";
     }
     
     
-    function popImg(i) { let arr = document.getElementById("images").value.split(","); arr.splice(i, 1); document.getElementById("images").value = arr.join(","); syncPreviews(); }
 
     function syncVideo() {
         const v = document.getElementById("video").value.trim();
@@ -1441,7 +1567,7 @@ document.getElementById("editor-container").value = "";
             box.innerHTML += `<div class="color-item-card"><div class="color-preview-dot" style="background:${item.code}"></div><span>${item.name}</span><button class="remove-badge" onclick="removeColor(${i})" style="position:static; margin-right:5px;">×</button></div>`;
         });
     }
-    function removeColor(index) { currentColors.splice(index, 1); syncColors(); }
+    
 
 async function commitProduct() {
         if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول للحفظ");
