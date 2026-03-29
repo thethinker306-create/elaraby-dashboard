@@ -535,7 +535,15 @@
 
         <div class="form-grid">
             <div class="form-group"><label>اسم المنتج</label><input type="text" id="name"></div>
-            <div class="form-group"><label>السعر</label><input type="text" id="price"></div>
+<div class="form-group">
+    <label>السعر (ج.م)</label>
+    <div style="display: flex; gap: 5px;">
+        <input type="text" id="price" placeholder="0.00" style="flex: 1; font-weight: bold; color: #059669;">
+        <button type="button" onclick="fetchPriceOnly()" class="btn" style="background: #3b82f6; width: auto; padding: 0 12px;" title="تحديث السعر فقط من المصدر">
+            <i class="fas fa-sync-alt"></i> تحديث السعر
+        </button>
+    </div>
+</div>
             <div class="form-group full-width">
     <label><i class="fas fa-tags"></i> القسم / التصنيف</label>
     <div style="display: flex; gap: 10px;">
@@ -884,6 +892,21 @@
             <i class="fas fa-bomb"></i> استعادة جميع الإعدادات (المظهر والإشعارات)
         </button>
     </div>
+    <div style="background: #eff6ff; border: 1px dashed #3b82f6; padding: 15px; border-radius: 8px; margin-top: 15px;">
+    <h4 style="margin: 0 0 10px 0; color: #1e40af;"><i class="fas fa-sync"></i> مزامنة الأسعار الشاملة</h4>
+    <p style="font-size: 11px; color: #64748b;">آخر تحديث شامل: <span id="last-sync-date">لم يتم التحديث بعد</span></p>
+    
+    <div id="sync-progress-area" style="display:none; margin-bottom: 10px;">
+        <div style="height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+            <div id="sync-bar" style="width: 0%; height: 100%; background: #3b82f6; transition: 0.3s;"></div>
+        </div>
+        <p id="sync-status-text" style="font-size: 10px; text-align: center; margin-top: 5px;">جاري المعالجة...</p>
+    </div>
+
+    <button id="start-sync-btn" class="btn" style="background: #1e40af; width: 100%;" onclick="startGlobalPriceSync()">
+        <i class="fas fa-play"></i> فحص وتحديث جميع الأسعار الآن
+    </button>
+</div>
 </section>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -4411,8 +4434,27 @@ function guessColorHex(colorName) {
 
 // تحويل الأرقام العربية إلى إنجليزية لاصطياد السعر
 function convertArabicToEnglishNumbers(str) {
-    if(!str) return "";
-    return str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\d]/g, '');
+    if (!str) return "";
+    // 1. تحويل الأرقام العربية إلى إنجليزية
+    let val = str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    
+    // 2. إزالة الفواصل القديمة (التي تأتي من الموقع) لعدم خلطها بالعلامة العشرية
+    val = val.replace(/,/g, '');
+
+    // 3. استخراج الرقم فقط (مع الحفاظ على النقطة العشرية إن وجدت)
+    let match = val.match(/\d+(\.\d+)?/);
+    if (!match) return "";
+    
+    let num = parseFloat(match[0]);
+    if (isNaN(num)) return "";
+
+    // 4. تنسيق الرقم: إضافة فواصل آلاف وإزالة الأصفار العشرية الزائدة
+    // مثال: 25699.00 يصبح 25,699
+    // مثال: 25699.50 يصبح 25,699.5
+    return new Intl.NumberFormat('en-US', {
+        maximumFractionDigits: 2, // حد أقصى رقمين عشريين
+        minimumFractionDigits: 0  // إذا كان .00 يتم حذفه تماماً
+    }).format(num);
 }
 
 // استخراج اسم اللون من عنوان المنتج بذكاء
@@ -4763,6 +4805,227 @@ window.addEventListener('click', function() {
         menu.classList.remove('show-actions');
     });
 });
+
+// دالة جلب السعر فقط دون التأثير على باقي الحقول
+async function fetchPriceOnly() {
+    const inputVal = document.getElementById("productId").value.trim();
+    if (!inputVal) {
+        Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج في خانة البحث أولاً!', 'warning');
+        return;
+    }
+
+    notify("جاري محاولة صيد السعر الجديد...", "info", "toast");
+
+    try {
+        let isDirectUrl = inputVal.startsWith('http');
+        let targetUrl = isDirectUrl ? inputVal : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
+        let proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        
+        let response = await fetch(proxyUrl);
+        let htmlText = await response.text();
+        let parser = new DOMParser();
+        let doc = parser.parseFromString(htmlText, "text/html");
+
+        let targetDoc = doc;
+
+        // إذا كانت صفحة بحث، ندخل لأول منتج
+        if (!isDirectUrl) {
+            const firstProductLink = doc.querySelector('.product-item-link')?.href;
+            if (firstProductLink) {
+                let mainRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(firstProductLink)}`);
+                let mainHtml = await mainRes.text();
+                targetDoc = parser.parseFromString(mainHtml, "text/html");
+            }
+        }
+
+        let fetchedPrice = "";
+        const priceSelectors = [
+            'meta[property="product:price:amount"]',
+            '[data-price-type="finalPrice"] .price',
+            '.special-price .price',
+            '.price-wrapper .price'
+        ];
+
+        for (let selector of priceSelectors) {
+            let el = targetDoc.querySelector(selector);
+            if (el) {
+                let val = el.getAttribute('content') || el.innerText;
+                fetchedPrice = convertArabicToEnglishNumbers(val); 
+                if (fetchedPrice) break;
+            }
+        }
+
+        if (fetchedPrice) {
+            const oldPrice = document.getElementById("price").value;
+            document.getElementById("price").value = fetchedPrice;
+            
+            if (oldPrice && oldPrice !== fetchedPrice) {
+                Swal.fire('تم التحديث', `تغير السعر من ${oldPrice} إلى ${fetchedPrice}`, 'success');
+            } else {
+                notify("تم جلب السعر بنجاح", "success", "toast");
+            }
+        } else {
+            throw new Error("لم يتم العثور على السعر");
+        }
+
+    } catch (error) {
+        console.error("Price Fetch Error:", error);
+        notify("فشل جلب السعر، تأكد من الكود", "error", "toast");
+    }
+}
+
+// ==========================================
+// 1. دالة تحديث السعر الفردي (بجوار الحقل)
+// ==========================================
+async function fetchPriceOnly() {
+    const productId = document.getElementById("productId").value.trim();
+    if (!productId) return notify("يرجى إدخال الكود أولاً", "warning", "toast");
+
+    notify("جاري صيد السعر الجديد...", "info", "toast");
+
+    try {
+        const price = await scrapePrice(productId);
+        if (price) {
+            document.getElementById("price").value = price;
+            notify("تم تحديث السعر بنجاح", "success", "toast");
+        }
+    } catch (e) {
+        notify("فشل جلب السعر من المصدر", "error", "toast");
+    }
+}
+
+// دالة وسيطة للسحب (Scraping Core)
+async function scrapePrice(idOrUrl) {
+    let targetUrl = idOrUrl.startsWith('http') ? idOrUrl : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(idOrUrl)}`;
+    let proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    
+    try {
+        let res = await fetch(proxyUrl);
+        let html = await res.text();
+        let doc = new DOMParser().parseFromString(html, "text/html");
+
+        if (!idOrUrl.startsWith('http')) {
+            const firstLink = doc.querySelector('.product-item-link')?.href;
+            if (firstLink) {
+                let res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(firstLink)}`);
+                let html2 = await res2.text();
+                doc = new DOMParser().parseFromString(html2, "text/html");
+            }
+        }
+
+        // تحديد السعر من التاجات المختلفة
+        const priceSelectors = [
+            'meta[property="product:price:amount"]', 
+            '[data-price-type="finalPrice"] .price',
+            '.special-price .price',
+            '.price-wrapper .price'
+        ];
+
+        for (let s of priceSelectors) {
+            let el = doc.querySelector(s);
+            if (el) {
+                // نأخذ النص أو قيمة الـ content
+                let rawPrice = el.getAttribute('content') || el.innerText;
+                // نرسلها للدالة المطورة أعلاه
+                return convertArabicToEnglishNumbers(rawPrice);
+            }
+        }
+    } catch (e) {
+        console.error("خطأ في جلب السعر:", e);
+    }
+    return null;
+}
+
+// ==========================================
+// 2. نظام التحديث الشامل (Global Auto Sync)
+// ==========================================
+
+// فحص تاريخ آخر تحديث عند تشغيل اللوحة
+async function checkLastSyncStatus() {
+    const meta = await db.collection("app_config").doc("metadata").get();
+    if (meta.exists && meta.data().last_global_price_sync) {
+        const lastSync = meta.data().last_global_price_sync;
+        const diffDays = (Date.now() - lastSync) / (1000 * 60 * 60 * 24);
+        
+        document.getElementById('last-sync-date').innerText = new Date(lastSync).toLocaleDateString('ar-EG');
+
+        // إذا مر أكثر من 5 أيام، أظهر تنبيه للأدمن
+        if (diffDays >= 5) {
+            Swal.fire({
+                title: 'تحديث الأسعار مطلوب!',
+                text: `مرت ${Math.floor(diffDays)} أيام منذ آخر مزامنة شاملة للأسعار. هل تريد التحديث الآن؟`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ابدأ المزامنة الآن',
+                cancelButtonText: 'لاحقاً'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showPanel('p-settings', document.querySelector('button[onclick*="p-settings"]'));
+                    startGlobalPriceSync();
+                }
+            });
+        }
+    }
+}
+
+// استدعاء الفحص عند التحميل
+setTimeout(checkLastSyncStatus, 3000);
+
+let stopSync = false;
+
+async function startGlobalPriceSync() {
+    if (localProducts.length === 0) return alert("لا توجد منتجات لتحديثها");
+    
+    const btn = document.getElementById('start-sync-btn');
+    const progressArea = document.getElementById('sync-progress-area');
+    const bar = document.getElementById('sync-bar');
+    const statusText = document.getElementById('sync-status-text');
+
+    stopSync = false;
+    btn.innerHTML = '<i class="fas fa-stop"></i> إيقاف المزامنة';
+    btn.style.background = "#ef4444";
+    btn.onclick = () => { stopSync = true; };
+    progressArea.style.display = 'block';
+
+    let updatedCount = 0;
+    let changedPrices = 0;
+
+    for (let i = 0; i < localProducts.length; i++) {
+        if (stopSync) break;
+
+        let p = localProducts[i];
+        statusText.innerText = `جاري فحص: ${p.id} (${i+1}/${localProducts.length})`;
+        
+        try {
+            const newPrice = await scrapePrice(p.id);
+            // إذا وجدنا سعراً مختلفاً، نقوم بتحديث قاعدة البيانات
+            if (newPrice && newPrice !== p.price) {
+                await db.collection("products").doc(p.id).update({ 
+                    price: newPrice,
+                    updatedAt: Date.now() 
+                });
+                changedPrices++;
+            }
+        } catch (e) { console.error(`خطأ في تحديث ${p.id}`); }
+
+        updatedCount++;
+        let percent = (updatedCount / localProducts.length) * 100;
+        bar.style.width = percent + "%";
+
+        // "الزتونة": انتظار لمدة ثانيتين بين كل منتج لتجنب حظر الـ Proxy والـ IP
+        await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // إنهاء المزامنة
+    await db.collection("app_config").doc("metadata").set({ last_global_price_sync: Date.now() }, {merge:true});
+    Swal.fire('اكتملت المزامنة', `تم فحص ${updatedCount} منتج، وتعديل سعر ${changedPrices} منتج بنجاح.`, 'success');
+    
+    // إعادة ضبط الأزرار
+    btn.innerHTML = '<i class="fas fa-play"></i> فحص وتحديث جميع الأسعار الآن';
+    btn.style.background = "#1e40af";
+    btn.onclick = startGlobalPriceSync;
+    checkLastSyncStatus();
+}
 </script>
 </body>
 </html>
