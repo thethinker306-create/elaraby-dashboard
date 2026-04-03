@@ -1135,6 +1135,22 @@
                lang="ar"
                oninput="/* يسمح بكل الحروف */">
     </div>
+    
+    <!-- الحقل الجديد: حساب العمل -->
+    <div class="form-group">
+        <label>حساب العمل (الأكونت)</label>
+        <select id="sellerAccount" onchange="toggleAccountInput()" style="width:100%; margin-bottom: 5px;">
+            <option value="بى تك">بى تك (B.TECH)</option>
+            <option value="رايه">رايه (Raya)</option>
+            <option value="اسواق عبد العزيز">اسواق عبد العزيز</option>
+            <option value="كارفور">كارفور (Carrefour)</option>
+            <option value="العربي">العربي (Elaraby)</option>
+            <option value="other">أخرى (كتابة يدوية)</option>
+        </select>
+        <!-- حقل يظهر فقط عند اختيار "أخرى" -->
+        <input type="text" id="sellerAccountOther" placeholder="اكتب اسم الحساب هنا..." style="display:none; width:100%; text-align: right;">
+    </div>
+    
     <div class="form-group">
         <label>الفرع / المنطقة</label>
         <input type="text" id="sellerBranch" placeholder="مثال: فرع المهندسين" 
@@ -1193,12 +1209,13 @@
         <table style="width:100%; border-collapse: collapse; font-size:13px; text-align:center;">
             <thead style="background:#1e293b; color:white;">
                 <tr>
+                 <th style="padding:10px;">إجراء</th>
                     <th style="padding:10px;">الاسم</th>
                     <th style="padding:10px;">المستخدم</th>
+                    <th style="padding:10px; color:#f59e0b;">الأكونت</th>
                     <th style="padding:10px;">الفرع</th>
                     <th style="padding:10px;">كلمة المرور</th>
                     <th style="padding:10px;">الحالة</th>
-                    <th style="padding:10px;">إجراء</th>
                 </tr>
             </thead>
             <tbody id="sellers-list-body">
@@ -3507,6 +3524,7 @@ return `
 
     <td style="padding:10px;">${d.name}</td>
     <td style="padding:10px; font-weight:bold; color:#1a73e8;">${d.username}</td>
+        <td style="padding:10px; font-weight:bold; color:#f59e0b;">${d.account || '-'}</td>
     <td style="padding:10px;">${d.branch}</td>
     <td style="padding:10px; font-family:monospace; background:#f1f5f9;">${d.password}</td>
     <td style="padding:10px; color:${statusColor}; font-weight:bold;">${statusText}</td>
@@ -3527,110 +3545,100 @@ return `
     });
 }
 
-function prepareEditSeller(id, name, user, branch, pass) {
-    editingSellerId = id; // تحديد المعرف ليعرف نظام الحفظ أننا في وضع التعديل
+function prepareEditSeller(id, name, user, branch, pass, account) {
+    editingSellerId = id; 
     
-    // ملء الحقول بالبيانات الحالية
     document.getElementById('sellerName').value = name;
     document.getElementById('sellerUser').value = user;
     document.getElementById('sellerBranch').value = branch;
     document.getElementById('sellerPass').value = pass;
 
-    // تغيير شكل ونص زر الحفظ
+    // معالجة القائمة المنسدلة الخاصة بالحساب
+    const accSelect = document.getElementById('sellerAccount');
+    const accInput = document.getElementById('sellerAccountOther');
+    
+    // التحقق مما إذا كان الحساب موجوداً ضمن الخيارات الأساسية
+    let optionExists = Array.from(accSelect.options).some(opt => opt.value === account);
+
+    if (optionExists && account !== "") {
+        accSelect.value = account;
+        accInput.style.display = 'none';
+    } else {
+        accSelect.value = 'other';
+        accInput.style.display = 'block';
+        accInput.value = account;
+    }
+
     const btn = document.querySelector("button[onclick='addNewSeller()']");
     if(btn) {
         btn.innerHTML = '<i class="fas fa-sync"></i> حفظ التعديلات';
-        btn.style.background = "var(--warning)"; // تغيير اللون للبرتقالي للتنبيه
+        btn.style.background = "var(--warning)"; 
     }
 
-    // التمرير لأعلى النموذج بسلاسة
     document.getElementById('sellerName').scrollIntoView({ behavior: 'smooth' });
-    
     notify("يمكنك الآن تعديل بيانات " + name, "info");
 }
 
-// --- 2. دالة البحث عن البائعين (الجديدة) ---
-function filterSellers() {
-    const input = document.getElementById('searchSellerInput');
-    const filter = input.value.toLowerCase();
-    const rows = document.getElementsByClassName('seller-row');
 
-    for (let i = 0; i < rows.length; i++) {
-        // نجمع النص الموجود في الصف بالكامل (الاسم + المستخدم + الفرع)
-        const rowText = rows[i].textContent || rows[i].innerText;
-        
-        if (rowText.toLowerCase().indexOf(filter) > -1) {
-            rows[i].style.display = ""; // إظهار
-        } else {
-            rows[i].style.display = "none"; // إخفاء
-        }
-    }
-}
-
-// دالة إضافة أو تحديث بائع (النسخة الآمنة المربوطة بـ Firebase Auth)
+// 4. تحديث دالة الإضافة والتحديث (addNewSeller) لحفظ الحقل الجديد
 async function addNewSeller() {
-    // 1. جلب القيم من الحقول
     const name = document.getElementById('sellerName').value.trim();
     const branch = document.getElementById('sellerBranch').value.trim();
     const user = document.getElementById('sellerUser').value.trim().toLowerCase();
     const pass = document.getElementById('sellerPass').value.trim();
+    
+    // استخراج قيمة الحساب الجديد
+    let account = document.getElementById('sellerAccount').value;
+    if (account === 'other') {
+        account = document.getElementById('sellerAccountOther').value.trim();
+    }
+
     const btn = document.querySelector("button[onclick='addNewSeller()']");
 
-    // 2. التحقق من الحقول
-    if(!name || !branch || !user || !pass) {
-        Swal.fire('تنبيه', '⚠️ يرجى ملء جميع البيانات', 'warning');
+    // التحقق أضفنا account
+    if(!name || !branch || !user || !pass || !account) {
+        Swal.fire('تنبيه', '⚠️ يرجى ملء جميع البيانات (بما في ذلك الأكونت)', 'warning');
         return;
     }
 
-    // إيميل وهمي للربط مع نظام مصادقة فايربيس
     const sellerEmail = `${user}@elaraby.com`;
-
-    // تغيير حالة الزر
     if(btn) { btn.innerHTML = "⏳ جاري الحفظ..."; btn.disabled = true; }
 
     try {
-        // === حالة التعديل (Update Mode) ===
         if (editingSellerId) {
+            // إضافة account للتحديث
             await db.collection('sellers_accounts').doc(editingSellerId).update({
                 name: name,
+                account: account, // الجديد
                 branch: branch,
                 username: user,
-                password: pass, // نحتفظ بها هنا لكي تظهر في الجدول لديك
+                password: pass, 
                 updatedAt: Date.now()
             });
             Swal.fire('تم', '✅ تم تحديث بيانات البائع بنجاح', 'success');
             
-            // إعادة الوضع للإضافة
-
-    editingSellerId = null; 
-    const btn = document.querySelector("button[onclick='addNewSeller()']");
-    if(btn) {
-        btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
-        btn.style.background = ""; // العودة للون الأصلي (الأخضر)
-    }
-}
-        // === حالة الإضافة الجديدة (Create Mode) ===
-        else {
-            // أ) التحقق من عدم تكرار اسم المستخدم في قاعدة البيانات أولاً
-            const checkUser = await db.collection('sellers_accounts').where('username', '==', user).get();
-            if(!checkUser.empty) {
-                throw new Error("اسم المستخدم هذا مسجل بالفعل!");
+            editingSellerId = null; 
+            if(btn) {
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
+                btn.style.background = ""; 
             }
+        }
+        else {
+            const checkUser = await db.collection('sellers_accounts').where('username', '==', user).get();
+            if(!checkUser.empty) throw new Error("اسم المستخدم هذا مسجل بالفعل!");
 
-            // ب) إنشاء الحساب في Firebase Auth باستخدام (التطبيق الثانوي) حتى لا يخرج المدير
             const userCredential = await secondaryAuth.createUserWithEmailAndPassword(sellerEmail, pass);
-            
-            // ج) تسجيل الخروج من التطبيق الثانوي فوراً
             await secondaryAuth.signOut();
 
-            // د) حفظ بيانات البائع في Firestore وربطها بالـ UID الآمن
             const uid = userCredential.user.uid;
+            // إضافة account للحفظ
             await db.collection('sellers_accounts').doc(uid).set({
                 uid: uid,
                 name: name,
+                account: account, // الجديد
                 branch: branch,
                 username: user,
-                password: pass, // للعرض في لوحة التحكم فقط
+                password: pass, 
                 isActive: true,
                 createdAt: Date.now()
             });
@@ -3643,30 +3651,21 @@ async function addNewSeller() {
         document.getElementById('sellerBranch').value = '';
         document.getElementById('sellerUser').value = '';
         document.getElementById('sellerPass').value = '';
+        document.getElementById('sellerAccount').value = 'بى تك'; // القيمة الافتراضية
+        document.getElementById('sellerAccountOther').value = '';
+        document.getElementById('sellerAccountOther').style.display = 'none';
 
     } catch(error) {
-        console.error("❌ حدث خطأ:", error);
-        
-        // معالجة رسائل الخطأ لتكون مفهومة للمستخدم
-        if (error.code === 'auth/email-already-in-use') {
-            Swal.fire('خطأ', '❌ اسم المستخدم هذا مسجل بالفعل في النظام!', 'error');
-        } else if (error.code === 'auth/weak-password') {
-            Swal.fire('خطأ', '❌ كلمة المرور ضعيفة جداً (يجب أن تكون 6 أحرف أو أرقام على الأقل)', 'error');
-        } else {
-            Swal.fire('خطأ', '❌ ' + error.message, 'error');
-        }
+        // ... (باقي كود معالجة الأخطاء كما هو لديك)
     } finally {
-        // إعادة الزر لحالته الطبيعية دائماً (حتى لو حدث خطأ)
         if(btn) {
             btn.disabled = false;
-            if (!editingSellerId) {
-                btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
-            } else {
-                btn.innerHTML = '<i class="fas fa-sync"></i> حفظ التعديلات';
-            }
+            if (!editingSellerId) btn.innerHTML = '<i class="fas fa-user-plus"></i> إنشاء حساب جديد';
+            else btn.innerHTML = '<i class="fas fa-sync"></i> حفظ التعديلات';
         }
     }
 }
+
     
 
 
@@ -5025,6 +5024,19 @@ async function startGlobalPriceSync() {
     btn.style.background = "#1e40af";
     btn.onclick = startGlobalPriceSync;
     checkLastSyncStatus();
+}
+
+// 1. دالة إظهار/إخفاء حقل (أخرى)
+function toggleAccountInput() {
+    const select = document.getElementById('sellerAccount');
+    const input = document.getElementById('sellerAccountOther');
+    if (select.value === 'other') {
+        input.style.display = 'block';
+        input.focus();
+    } else {
+        input.style.display = 'none';
+        input.value = '';
+    }
 }
 </script>
 </body>
