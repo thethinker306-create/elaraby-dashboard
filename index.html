@@ -4445,31 +4445,32 @@ function guessColorHex(colorName) {
     return '#cccccc'; 
 }
 
-// تحويل الأرقام العربية إلى إنجليزية لاصطياد السعر
+// ==========================================
+// 1. فلتر تنظيف الأرقام (النسخة النهائية - تم حل مشكلة الأصفار)
+// ==========================================
 function convertArabicToEnglishNumbers(str) {
-    if (!str) return "";
-    // 1. تحويل الأرقام العربية إلى إنجليزية
-    let val = str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    if (!str) return "0";
     
-    // 2. إزالة الفواصل القديمة (التي تأتي من الموقع) لعدم خلطها بالعلامة العشرية
-    val = val.replace(/,/g, '');
-
-    // 3. استخراج الرقم فقط (مع الحفاظ على النقطة العشرية إن وجدت)
-    let match = val.match(/\d+(\.\d+)?/);
-    if (!match) return "";
+    // 1. تحويل الأرقام العربية (الهندية) إلى إنجليزية إن وجدت
+    let val = str.toString().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
     
-    let num = parseFloat(match[0]);
-    if (isNaN(num)) return "";
+    // 2. إزالة الكلمات بدقة (ج.م أو EGP) بدون المساس بالنقطة العشرية للأرقام
+    val = val.replace(/ج\.م/gi, '').replace(/egp/gi, '');
+    
+    // 3. إزالة الفواصل (العربية والإنجليزية) والمسافات
+    val = val.replace(/[,،\s]/g, '');
+    
+    // 4. إزالة أي حروف أو رموز غريبة متبقية (مع الحفاظ على الأرقام والنقطة العشرية)
+    val = val.replace(/[^\d.]/g, ''); 
 
-    // 4. تنسيق الرقم: إضافة فواصل آلاف وإزالة الأصفار العشرية الزائدة
-    // مثال: 25699.00 يصبح 25,699
-    // مثال: 25699.50 يصبح 25,699.5
-    return new Intl.NumberFormat('en-US', {
-        maximumFractionDigits: 2, // حد أقصى رقمين عشريين
-        minimumFractionDigits: 0  // إذا كان .00 يتم حذفه تماماً
-    }).format(num);
+    // 5. تحويل النص إلى رقم حقيقي (هنا 25699.00 ستصبح تلقائياً 25699)
+    let num = parseFloat(val);
+    
+    // 6. إذا كان الناتج غير صالح، يرجع 0
+    if (isNaN(num) || num <= 0) return "0";
+
+    return num.toString();
 }
-
 // استخراج اسم اللون من عنوان المنتج بذكاء
 function extractColorFromTitle(title) {
     if(!title) return null;
@@ -4512,15 +4513,25 @@ async function fetchProductData() {
         let mainProductDoc = doc; // المستند الذي سنسحب منه التفاصيل الرئيسية
         let mainProductLink = "";
 
-        // ==========================================
-        // 🛠️ المرحلة الأولى: تحليل صفحة البحث (صيد الألوان المنفصلة)
+// ==========================================
+        // 🛠️ المرحلة الأولى: تحليل صفحة البحث (تجاهل المنتجات المروجة)
         // ==========================================
         const searchResultsList = doc.querySelector('.products.list.items.product-items');
+        let fetchedPrice = "0"; // تعريف السعر مبكراً
         
-        // إذا كنا في صفحة بحث ويوجد كروت منتجات
         if (!isDirectUrl && searchResultsList) {
             const productCards = searchResultsList.querySelectorAll('.product-item-info');
-            
+            let matchedCardIndex = 0; // الافتراضي أول منتج
+
+            // 🎯 البحث عن البطاقة التي تطابق كود الشاشة الحقيقي لتجاهل السماعة (25699)
+            const searchCode = inputVal.toLowerCase();
+            productCards.forEach((card, index) => {
+                const title = card.querySelector('.product-item-link')?.innerText.toLowerCase() || "";
+                if (title.includes(searchCode) && matchedCardIndex === 0) {
+                    matchedCardIndex = index; // تحديد رقم المنتج الصحيح
+                }
+            });
+
             productCards.forEach((card, index) => {
                 const titleEl = card.querySelector('.product-item-link');
                 const imgEl = card.querySelector('.product-image-photo');
@@ -4528,14 +4539,21 @@ async function fetchProductData() {
                 if (titleEl && imgEl) {
                     const title = titleEl.innerText.trim();
                     const link = titleEl.href;
-                    // جلب الصورة الأصلية وإزالة الكاش
                     let imgUrl = imgEl.getAttribute('data-src') || imgEl.getAttribute('src');
                     imgUrl = imgUrl ? imgUrl.replace(/\/cache\/.*?\//g, '/') : "";
 
-                    // حفظ رابط أول منتج لندخل إليه ونسحب منه السعر والتفاصيل لاحقاً
-                    if (index === 0) mainProductLink = link;
+                    // إذا كان هذا هو المنتج الصحيح، نحفظ رابطه وسعره
+                    if (index === matchedCardIndex) {
+                        mainProductLink = link;
+                        
+                        // سحب السعر من كارت البحث في الخارج
+                        const priceSpan = card.querySelector('[data-price-type="finalPrice"]');
+                        if (priceSpan) {
+                            let amount = priceSpan.getAttribute('data-price-amount');
+                            if (amount) fetchedPrice = convertArabicToEnglishNumbers(amount);
+                        }
+                    }
 
-                    // استخراج اللون من العنوان
                     let foundColor = extractColorFromTitle(title);
                     if (foundColor && imgUrl) {
                         extractedColors.push({ name: foundColor, url: imgUrl });
@@ -4543,16 +4561,13 @@ async function fetchProductData() {
                 }
             });
 
-            // الدخول إلى صفحة أول منتج لسحب السعر والتفاصيل والمزيد من الصور
             if (mainProductLink) {
                 let mainProxyUrl = `https://corsproxy.io/?${encodeURIComponent(mainProductLink)}`;
                 let mainRes = await fetch(mainProxyUrl);
                 let mainHtml = await mainRes.text();
                 mainProductDoc = parser.parseFromString(mainHtml, "text/html");
             }
-        } 
-        // إذا كان رابط مباشر لمنتج، نحاول سحب اللون من عنوانه
-        else if (isDirectUrl) {
+        } else if (isDirectUrl) {
             const title = mainProductDoc.querySelector('h1.page-title')?.innerText.trim() || "";
             let foundColor = extractColorFromTitle(title);
             let firstImg = mainProductDoc.querySelector('.product.media img')?.getAttribute('src') || "";
@@ -4562,36 +4577,36 @@ async function fetchProductData() {
             }
         }
 
-        // إزالة الألوان المكررة بناءً على الاسم
         extractedColors = extractedColors.filter((v, i, a) => a.findIndex(t => (t.name === v.name)) === i);
 
         // ==========================================
         // 🛠️ المرحلة الثانية: سحب البيانات الأساسية (من صفحة المنتج)
         // ==========================================
         const fetchedName = mainProductDoc.querySelector('h1.page-title')?.innerText.trim() || "";
-        let fetchedPrice = "";
-
-        // صيد السعر بدقة
-        const priceSelectors = [
-            'meta[property="product:price:amount"]',
-            '[data-price-type="finalPrice"] .price',
-            '.special-price .price',
-            '.price-wrapper .price',
-            '.product-info-price .price'
-        ];
-
-        for (let selector of priceSelectors) {
-            let el = mainProductDoc.querySelector(selector);
-            if (el) {
-                let val = el.getAttribute('content') || el.innerText;
-                let engNum = convertArabicToEnglishNumbers(val); 
-                if (engNum && parseInt(engNum) > 0) {
-                    fetchedPrice = engNum;
-                    break;
+        
+        // إذا لم نتمكن من سحب السعر من كارت البحث الخارجي، نسحبه من الداخل
+        if (fetchedPrice === "0" || !fetchedPrice) {
+            const mainInfoBox = mainProductDoc.querySelector('.product-info-main');
+            if (mainInfoBox) {
+                const finalPriceSpan = mainInfoBox.querySelector('.product-info-price [data-price-type="finalPrice"]');
+                if (finalPriceSpan) {
+                    let amountAttr = finalPriceSpan.getAttribute('data-price-amount');
+                    if (amountAttr) {
+                        fetchedPrice = convertArabicToEnglishNumbers(amountAttr);
+                    } else {
+                        let textPrice = finalPriceSpan.querySelector('.price');
+                        if (textPrice) fetchedPrice = convertArabicToEnglishNumbers(textPrice.innerText);
+                    }
+                }
+            }
+            
+            if (fetchedPrice === "0") {
+                let metaPrice = mainProductDoc.querySelector('meta[property="product:price:amount"]');
+                if (metaPrice && metaPrice.getAttribute('content')) {
+                    fetchedPrice = convertArabicToEnglishNumbers(metaPrice.getAttribute('content'));
                 }
             }
         }
-
         // ==========================================
         // 🛠️ المرحلة الثالثة: سحب صور المعرض الأساسية
         // ==========================================
@@ -4819,95 +4834,45 @@ window.addEventListener('click', function() {
     });
 });
 
-// دالة جلب السعر فقط دون التأثير على باقي الحقول
-async function fetchPriceOnly() {
-    const inputVal = document.getElementById("productId").value.trim();
-    if (!inputVal) {
-        Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج في خانة البحث أولاً!', 'warning');
-        return;
-    }
 
-    notify("جاري محاولة صيد السعر الجديد...", "info", "toast");
-
-    try {
-        let isDirectUrl = inputVal.startsWith('http');
-        let targetUrl = isDirectUrl ? inputVal : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
-        let proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-        
-        let response = await fetch(proxyUrl);
-        let htmlText = await response.text();
-        let parser = new DOMParser();
-        let doc = parser.parseFromString(htmlText, "text/html");
-
-        let targetDoc = doc;
-
-        // إذا كانت صفحة بحث، ندخل لأول منتج
-        if (!isDirectUrl) {
-            const firstProductLink = doc.querySelector('.product-item-link')?.href;
-            if (firstProductLink) {
-                let mainRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(firstProductLink)}`);
-                let mainHtml = await mainRes.text();
-                targetDoc = parser.parseFromString(mainHtml, "text/html");
-            }
-        }
-
-        let fetchedPrice = "";
-        const priceSelectors = [
-            'meta[property="product:price:amount"]',
-            '[data-price-type="finalPrice"] .price',
-            '.special-price .price',
-            '.price-wrapper .price'
-        ];
-
-        for (let selector of priceSelectors) {
-            let el = targetDoc.querySelector(selector);
-            if (el) {
-                let val = el.getAttribute('content') || el.innerText;
-                fetchedPrice = convertArabicToEnglishNumbers(val); 
-                if (fetchedPrice) break;
-            }
-        }
-
-        if (fetchedPrice) {
-            const oldPrice = document.getElementById("price").value;
-            document.getElementById("price").value = fetchedPrice;
-            
-            if (oldPrice && oldPrice !== fetchedPrice) {
-                Swal.fire('تم التحديث', `تغير السعر من ${oldPrice} إلى ${fetchedPrice}`, 'success');
-            } else {
-                notify("تم جلب السعر بنجاح", "success", "toast");
-            }
-        } else {
-            throw new Error("لم يتم العثور على السعر");
-        }
-
-    } catch (error) {
-        console.error("Price Fetch Error:", error);
-        notify("فشل جلب السعر، تأكد من الكود", "error", "toast");
-    }
-}
-
-// ==========================================
-// 1. دالة تحديث السعر الفردي (بجوار الحقل)
-// ==========================================
+// ==================================
+// 1. دالة تحديث السعر الفردي (النسخة النهائية الموحدة)
+// ==================================
 async function fetchPriceOnly() {
     const productId = document.getElementById("productId").value.trim();
-    if (!productId) return notify("يرجى إدخال الكود أولاً", "warning", "toast");
+    
+    if (!productId) {
+        Swal.fire('تنبيه', 'يرجى إدخال كود المنتج أولاً!', 'warning');
+        return;
+    }
 
     notify("جاري صيد السعر الجديد...", "info", "toast");
 
     try {
-        const price = await scrapePrice(productId);
-        if (price) {
-            document.getElementById("price").value = price;
+        let price = await scrapePrice(productId);
+        
+        // إذا كان السعر غير موجود، أو فارغ، أو null
+        if (!price || price === "") {
+            price = "0";
+            notify("لم يتم العثور على سعر، تم تعيينه إلى 0", "warning", "toast");
+        } else {
             notify("تم تحديث السعر بنجاح", "success", "toast");
         }
+
+        // إجبار المتصفح على كتابة القيمة في الحقل
+        document.getElementById("price").value = price;
+
     } catch (e) {
-        notify("فشل جلب السعر من المصدر", "error", "toast");
+        console.error("Price Fetch Error:", e);
+        // في حالة توقف سيرفر الوكيل (Proxy) أو انقطاع الإنترنت يضع 0 أيضاً
+        document.getElementById("price").value = "0";
+        notify("فشل جلب السعر، تم تعيينه 0", "error", "toast");
     }
 }
 
-// دالة وسيطة للسحب (Scraping Core)
+// ==========================================
+// 2. محرك السحب (Scraping Core) - نسخة الذكاء الاصطناعي لتخطي الإعلانات
+// ==========================================
 async function scrapePrice(idOrUrl) {
     let targetUrl = idOrUrl.startsWith('http') ? idOrUrl : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(idOrUrl)}`;
     let proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
@@ -4917,38 +4882,61 @@ async function scrapePrice(idOrUrl) {
         let html = await res.text();
         let doc = new DOMParser().parseFromString(html, "text/html");
 
-        if (!idOrUrl.startsWith('http')) {
-            const firstLink = doc.querySelector('.product-item-link')?.href;
-            if (firstLink) {
-                let res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(firstLink)}`);
-                let html2 = await res2.text();
-                doc = new DOMParser().parseFromString(html2, "text/html");
+        // 🎯 1. إذا كنا في صفحة بحث، فلن نضغط على أول رابط أعمى!
+        if (!idOrUrl.startsWith('http') && doc.querySelector('.products.list.items.product-items')) {
+            const searchResults = doc.querySelectorAll('.product-item-info');
+            let targetCard = searchResults[0]; // الافتراضي أول كارت
+            
+            // البحث عن الكارت الذي يطابق الكود الذي كتبته لتجاهل السماعات والإعلانات
+            const searchCode = idOrUrl.toLowerCase();
+            for (let card of searchResults) {
+                const title = card.querySelector('.product-item-link')?.innerText.toLowerCase() || "";
+                if (title.includes(searchCode)) {
+                    targetCard = card; // وجدنا الشاشة الحقيقية!
+                    break; 
+                }
+            }
+
+            if (targetCard) {
+                // سحب السعر من كارت البحث الخارجي مباشرة (أكثر أماناً)
+                const priceSpan = targetCard.querySelector('[data-price-type="finalPrice"]');
+                if (priceSpan) {
+                    let amount = priceSpan.getAttribute('data-price-amount');
+                    if (amount) return convertArabicToEnglishNumbers(amount);
+                }
+
+                // الدخول لصفحة المنتج الصحيحة إذا لم نجد السعر في الخارج
+                const productLink = targetCard.querySelector('.product-item-link')?.href;
+                if (productLink) {
+                    let res2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(productLink)}`);
+                    let html2 = await res2.text();
+                    doc = new DOMParser().parseFromString(html2, "text/html");
+                }
             }
         }
 
-        // تحديد السعر من التاجات المختلفة
-        const priceSelectors = [
-            'meta[property="product:price:amount"]', 
-            '[data-price-type="finalPrice"] .price',
-            '.special-price .price',
-            '.price-wrapper .price'
-        ];
-
-        for (let s of priceSelectors) {
-            let el = doc.querySelector(s);
-            if (el) {
-                // نأخذ النص أو قيمة الـ content
-                let rawPrice = el.getAttribute('content') || el.innerText;
-                // نرسلها للدالة المطورة أعلاه
-                return convertArabicToEnglishNumbers(rawPrice);
+        // 🎯 2. سحب السعر من داخل صفحة المنتج بناءً على صورك
+        const mainInfoBox = doc.querySelector('.product-info-main');
+        if (mainInfoBox) {
+            const finalPriceSpan = mainInfoBox.querySelector('.product-info-price[data-price-type="finalPrice"]');
+            if (finalPriceSpan) {
+                let amountAttr = finalPriceSpan.getAttribute('data-price-amount');
+                if (amountAttr) return convertArabicToEnglishNumbers(amountAttr);
             }
         }
+
+        // 🎯 3. الخطة البديلة (تاج الميتا)
+        let metaPrice = doc.querySelector('meta[property="product:price:amount"]');
+        if (metaPrice && metaPrice.getAttribute('content')) {
+            return convertArabicToEnglishNumbers(metaPrice.getAttribute('content'));
+        }
+        
     } catch (e) {
         console.error("خطأ في جلب السعر:", e);
     }
-    return null;
+    
+    return "0";
 }
-
 // ==========================================
 // 2. نظام التحديث الشامل (Global Auto Sync)
 // ==========================================
