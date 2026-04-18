@@ -4990,36 +4990,69 @@ async function startGlobalPriceSync() {
 
     let updatedCount = 0;
     let changedPrices = 0;
+    let failedCount = 0; // إضافة عداد لمعرفة المنتجات التي فشل جلبها بسبب البروكسي
 
     for (let i = 0; i < localProducts.length; i++) {
         if (stopSync) break;
 
         let p = localProducts[i];
+        
+        // تخطي المنتجات التي ليس لها كود صحيح
+        if (!p.id || p.id.trim() === "") {
+            updatedCount++;
+            continue;
+        }
+
         statusText.innerText = `جاري فحص: ${p.id} (${i+1}/${localProducts.length})`;
         
         try {
             const newPrice = await scrapePrice(p.id);
-            // إذا وجدنا سعراً مختلفاً، نقوم بتحديث قاعدة البيانات
-            if (newPrice && newPrice !== p.price) {
-                await db.collection("products").doc(p.id).update({ 
-                    price: newPrice,
-                    updatedAt: Date.now() 
-                });
-                changedPrices++;
+            
+            // 1. الحماية الجوهرية: التأكد أن السعر لم يرجع 0 أو فارغ
+            if (newPrice && newPrice !== "0" && newPrice.trim() !== "") {
+                
+                // 2. تحويل الأسعار لأرقام لضمان دقة المقارنة (تجنب مشكلة 2500.00 و 2500)
+                const oldPriceNum = parseFloat(p.price) || 0;
+                const newPriceNum = parseFloat(newPrice);
+
+                // 3. التحديث فقط إذا اختلف السعر الفعلي
+                if (newPriceNum > 0 && newPriceNum !== oldPriceNum) {
+                    await db.collection("products").doc(p.id).update({ 
+                        price: newPriceNum.toString(),
+                        updatedAt: Date.now() 
+                    });
+                    changedPrices++;
+                    
+                    // تحديث المصفوفة المحلية فوراً حتى لا نحتاج لعمل ريفريش
+                    p.price = newPriceNum.toString();
+                }
+            } else {
+                // إذا رجع السعر 0، نسجل أنه فشل ولا نحدث قاعدة البيانات لحماية السعر القديم
+                failedCount++;
             }
-        } catch (e) { console.error(`خطأ في تحديث ${p.id}`); }
+        } catch (e) { 
+            console.error(`خطأ في تحديث ${p.id}`, e); 
+            failedCount++;
+        }
 
         updatedCount++;
         let percent = (updatedCount / localProducts.length) * 100;
         bar.style.width = percent + "%";
 
-        // "الزتونة": انتظار لمدة ثانيتين بين كل منتج لتجنب حظر الـ Proxy والـ IP
-        await new Promise(r => setTimeout(r, 2000));
+        // 4. رفع مدة الانتظار إلى 3 ثواني لحماية اتصالك من الحظر (Rate Limiting) عبر البروكسي
+        await new Promise(r => setTimeout(r, 3000));
     }
 
     // إنهاء المزامنة
     await db.collection("app_config").doc("metadata").set({ last_global_price_sync: Date.now() }, {merge:true});
-    Swal.fire('اكتملت المزامنة', `تم فحص ${updatedCount} منتج، وتعديل سعر ${changedPrices} منتج بنجاح.`, 'success');
+    
+    // رسالة نهائية توضح التفاصيل بدقة
+    let finalMessage = `تم فحص ${updatedCount} منتج، وتحديث أسعار ${changedPrices} منتج بنجاح.`;
+    if(failedCount > 0) {
+        finalMessage += `\n⚠️ تعذر جلب سعر (${failedCount}) منتج وتم الاحتفاظ بأسعارهم القديمة لحمايتها.`;
+    }
+    
+    Swal.fire('اكتملت المزامنة', finalMessage, 'success');
     
     // إعادة ضبط الأزرار
     btn.innerHTML = '<i class="fas fa-play"></i> فحص وتحديث جميع الأسعار الآن';
@@ -5027,7 +5060,6 @@ async function startGlobalPriceSync() {
     btn.onclick = startGlobalPriceSync;
     checkLastSyncStatus();
 }
-
 // 1. دالة إظهار/إخفاء حقل (أخرى)
 function toggleAccountInput() {
     const select = document.getElementById('sellerAccount');
