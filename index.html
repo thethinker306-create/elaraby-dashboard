@@ -781,6 +781,51 @@
                 <tr><td colspan="6" style="padding:20px;">جاري تجميع البيانات...</td></tr>
             </tbody>
         </table>
+<hr style="border:0; border-top:2px dashed #cbd5e1; margin:25px 0;">
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h3 style="margin:0;"><i class="fas fa-gift" style="color:#e91e63;"></i> إدارة حوافز القطع (Bonuses)</h3>
+    </div>
+
+    <!-- فورم إضافة الحافز -->
+    <div style="background:#fff5f8; padding:15px; border-radius:8px; border:1px solid #fbcfe8; margin-bottom:20px;">
+        <div class="form-grid" style="align-items: end;">
+            <div class="form-group" style="position: relative;">
+                <label style="color:#be185d;">البحث عن المنتج</label>
+                <input type="text" id="inc-search" oninput="searchIncentiveProduct(this.value)" placeholder="اكتب كود أو اسم المنتج..." style="border-color:#fbcfe8;">
+                <!-- قائمة الاقتراحات -->
+                <div id="inc-suggestions" style="position:absolute; top:100%; left:0; right:0; background:white; z-index:1000; border-radius:6px; box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:150px; overflow-y:auto; display:none; border:1px solid #e2e8f0;"></div>
+            </div>
+            
+            <div class="form-group">
+                <label style="color:#be185d;">المبلغ حافز القطعة (ج.م)</label>
+                <input type="number" id="inc-amount" placeholder="مثال: 50" style="border-color:#fbcfe8; font-weight:bold;">
+                <input type="hidden" id="inc-prod-id">
+            </div>
+
+            <button onclick="saveProductIncentive()" class="btn" style="background:#e91e63; color:white; height:34px; margin-bottom:8px;">
+                <i class="fas fa-save"></i> حفظ الحافز
+            </button>
+        </div>
+    </div>
+
+    <!-- جدول المنتجات التي عليها حافز -->
+    <h4 style="margin:0 0 10px 0; font-size:13px; color:#475569;">📋 المنتجات المسجل عليها حوافز حالياً</h4>
+    <div style="overflow-x:auto; border:1px solid #e2e8f0; border-radius:8px;">
+        <table style="width:100%; border-collapse: collapse; font-size:13px; text-align:center;">
+            <thead style="background:#1e293b; color:white;">
+                <tr>
+                    <th style="padding:10px;">كود المنتج</th>
+                    <th style="padding:10px;">اسم المنتج</th>
+                    <th style="padding:10px; color:#f472b6;">الحافز للقطعة</th>
+                    <th style="padding:10px;">إجراء</th>
+                </tr>
+            </thead>
+            <tbody id="incentives-list-body">
+                <tr><td colspan="4" style="padding:20px;">جاري التحميل...</td></tr>
+            </tbody>
+        </table>
+    </div>
     </div>
 </section>
 
@@ -1522,6 +1567,7 @@ async function loadInitialProducts() {
 
         updateDashboardStats(); 
         if(countTotalEl) countTotalEl.innerText = localProducts.length;
+        renderIncentivesTable();
 
         Toast.fire({ icon: 'success', title: 'تم تجهيز قاعدة البيانات والبحث' });
 
@@ -5725,6 +5771,149 @@ window.exportTargetsToExcel = function() {
     const dateStr = new Date().toISOString().slice(0,10);
     XLSX.writeFile(wb, `Sales_Target_Report_${dateStr}.xlsx`);
 };
+
+// ==========================================
+// 🎁 نظام إدارة حوافز القطع (Incentives)
+// ==========================================
+
+// 1. البحث السريع عن المنتج
+function searchIncentiveProduct(val) {
+    const sugBox = document.getElementById("inc-suggestions");
+    sugBox.innerHTML = "";
+    
+    if(!val) { sugBox.style.display = "none"; return; }
+
+    const searchTerm = val.toLowerCase().trim();
+    // البحث في المنتجات المحملة مسبقاً في اللوحة
+    const matches = localProducts.filter(p => 
+        p.id.toLowerCase().includes(searchTerm) || 
+        (p.name && p.name.toLowerCase().includes(searchTerm))
+    ).slice(0, 10);
+
+    if(matches.length > 0) {
+        sugBox.style.display = "block";
+        matches.forEach(p => {
+            const div = document.createElement("div");
+            div.style.cssText = "padding:8px; border-bottom:1px solid #eee; cursor:pointer; font-size:11px; text-align:right;";
+            div.innerHTML = `<b style="color:#1a73e8;">${p.id}</b> - ${p.name}`;
+            div.onclick = () => {
+                document.getElementById("inc-search").value = p.name;
+                document.getElementById("inc-prod-id").value = p.id;
+                document.getElementById("inc-amount").value = p.incentive || ""; // جلب الحافز القديم إن وجد
+                sugBox.style.display = "none";
+            };
+            sugBox.appendChild(div);
+        });
+    } else {
+        sugBox.style.display = "none";
+    }
+}
+
+// 2. حفظ الحافز في قاعدة البيانات وتحديث الواجهة فوراً
+async function saveProductIncentive() {
+    const prodId = document.getElementById("inc-prod-id").value;
+    const amount = parseFloat(document.getElementById("inc-amount").value);
+
+    if (!prodId) return Swal.fire('تنبيه', 'يرجى اختيار المنتج من قائمة البحث أولاً', 'warning');
+    if (isNaN(amount) || amount <= 0) return Swal.fire('تنبيه', 'يرجى كتابة مبلغ حافز صحيح', 'warning');
+
+    const btn = document.querySelector("button[onclick='saveProductIncentive()']");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+    btn.disabled = true;
+
+    try {
+        // أ) التحديث في السيرفر
+        await db.collection("products").doc(prodId).update({
+            incentive: amount,
+            updatedAt: Date.now()
+        });
+        
+        // ب) إجبار التطبيق على تحديث كاش المنتجات
+        await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+
+        // ج) 🚀 الحل السحري: تحديث المصفوفة المحلية فوراً لكي يظهر في الجدول بدون ريفريش
+        const updatedList = localProducts.map(p => {
+            if (p.id === prodId) {
+                // ننشئ نسخة جديدة من المنتج ونضيف لها الحافز
+                return Object.freeze({ ...p, incentive: amount });
+            }
+            return p;
+        });
+        localProducts = Object.freeze(updatedList); // إعادة تجميد المصفوفة
+
+        // د) تفريغ الحقول ورسم الجدول
+        document.getElementById("inc-search").value = "";
+        document.getElementById("inc-prod-id").value = "";
+        document.getElementById("inc-amount").value = "";
+        
+        renderIncentivesTable(); // تحديث الجدول فوراً
+        
+        Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'تم الحفظ بنجاح', showConfirmButton: false, timer: 2000});
+
+    } catch (e) {
+        Swal.fire('خطأ', 'فشل الحفظ: ' + e.message, 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+// 3. عرض المنتجات التي تحتوي على حافز
+function renderIncentivesTable() {
+    const tbody = document.getElementById('incentives-list-body');
+    // فلترة المنتجات التي تحتوي على حقل الحافز وقيمته أكبر من 0
+    const incentivizedProducts = localProducts.filter(p => p.incentive && p.incentive > 0);
+
+    if (incentivizedProducts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:20px; color:#64748b;">لا توجد منتجات عليها حوافز حالياً.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = incentivizedProducts.map(p => `
+        <tr style="border-bottom:1px solid #f1f5f9; background:#fff;">
+            <td style="padding:10px; font-weight:bold;">${p.id}</td>
+            <td style="padding:10px; color:#1e293b; font-size:11px;">${p.name}</td>
+            <td style="padding:10px; font-weight:900; color:#e91e63;">${p.incentive} ج.م</td>
+            <td style="padding:10px;">
+                <button onclick="removeProductIncentive('${p.id}')" class="btn btn-red" style="padding:4px 10px; margin:0 auto; width:auto;">
+                    <i class="fas fa-trash"></i> إلغاء الحافز
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 4. حذف الحافز وتحديث الواجهة فوراً
+async function removeProductIncentive(prodId) {
+    if(!confirm("هل أنت متأكد من إلغاء الحافز من هذا المنتج؟")) return;
+    try {
+        // أ) الحذف من السيرفر
+        await db.collection("products").doc(prodId).update({
+            incentive: firebase.firestore.FieldValue.delete(),
+            updatedAt: Date.now()
+        });
+        await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+        
+        // ب) 🚀 الحل السحري: إزالة الحافز من المصفوفة المحلية
+        const updatedList = localProducts.map(p => {
+            if (p.id === prodId) {
+                const newP = { ...p };
+                delete newP.incentive; // مسح الحقل من النسخة المحلية
+                return Object.freeze(newP);
+            }
+            return p;
+        });
+        localProducts = Object.freeze(updatedList);
+
+        // ج) إعادة رسم الجدول
+        renderIncentivesTable();
+
+        Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'تم إلغاء الحافز بنجاح', showConfirmButton: false, timer: 2000});
+    } catch (e) {
+        alert("خطأ: " + e.message);
+    }
+}
+
 </script>
 </body>
 </html>
