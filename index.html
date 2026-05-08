@@ -415,6 +415,18 @@
 /* فئة الإظهار */
 .show-actions { display: block !important; }
 
+/* تأثيرات جدول التقارير المجمع */
+.branch-summary-row:hover {
+    background-color: #f1f5f9 !important;
+}
+.branch-details-container {
+    animation: fadeInSlideDown 0.3s ease-out;
+}
+@keyframes fadeInSlideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
     </style>
 </head>
 <body>
@@ -3146,78 +3158,125 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
         }
     }
 
-// 3. رسم الجدول (تم التعديل لإظهار الكمية)
-    function renderSalesTable(sales, branchFilter) {
-        const tbody = document.getElementById('sales-report-body');
-        let grandTotal = 0; 
-        const groupedSales = {};
+// ==========================================
+// 📊 رسم جدول التقارير (مجمع وذكي)
+// ==========================================
+function renderSalesTable(sales, branchFilter) {
+    const tbody = document.getElementById('sales-report-body');
+    let grandTotal = 0; 
+    const groupedSales = {};
 
-        sales.forEach(s => {
-            const rawBranch = s.branch ? s.branch.trim() : 'فرع غير محدد';
-            if (branchFilter && !rawBranch.toLowerCase().includes(branchFilter)) return;
+    // 1. خوارزمية التجميع والدمج الذكي
+    sales.forEach(s => {
+        const rawBranch = s.branch ? s.branch.trim() : 'فرع غير محدد';
+        if (branchFilter && !rawBranch.toLowerCase().includes(branchFilter)) return;
 
-            if (!groupedSales[rawBranch]) {
-                groupedSales[rawBranch] = { name: rawBranch, items: [], branchTotal: 0 };
-            }
-
-            // --- التعديل هنا: جلب الكمية وحساب الإجمالي ---
-            const qty = Number(s.qty) || 1; // الافتراضي 1 إذا لم توجد كمية
-            const price = Number(s.price) || 0;
-            const itemTotal = price * qty;
-
-            groupedSales[rawBranch].items.push({...s, qty: qty, itemTotal: itemTotal}); // إضافة البيانات للكائن
-            groupedSales[rawBranch].branchTotal += itemTotal;
-            grandTotal += itemTotal;
-        });
-
-        const branchNames = Object.keys(groupedSales);
-        if(branchNames.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">لا توجد نتائج</td></tr>';
-            document.getElementById('total-sales-display').innerText = "0 ج.م";
-            return;
+        // إذا لم يكن الفرع موجوداً، ننشئه
+        if (!groupedSales[rawBranch]) {
+            groupedSales[rawBranch] = { name: rawBranch, items: {}, branchTotal: 0, opsCount: 0 };
         }
 
-        tbody.innerHTML = branchNames.map(bName => {
-            const branch = groupedSales[bName];
-            
-            const productsListHTML = branch.items.map(item => 
-                `<div style="border-bottom:1px dashed #eee; padding:5px 0; display:flex; justify-content:space-between; align-items:center;">
-                    <div style="flex:1;">
-                        <span style="color:#666; font-size:11px;">[${item.date}]</span>
-                        <span style="font-weight:bold; color:#333;">${item.product}</span>
-                        <!-- عرض الكمية هنا -->
-                        <span style="font-size:11px; background:#eff6ff; color:#1d4ed8; padding:2px 5px; border-radius:4px; margin-right:5px;">
-                            (عدد: ${item.qty})
-                        </span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <span style="color:#10b981;">${item.itemTotal.toLocaleString()} ج.م</span>
-                        <button onclick="deleteSaleFromDashboard('${item.id}')" title="حذف هذا المنتج" 
-                                style="background:#fee2e2; color:#ef4444; border:none; width:20px; height:20px; border-radius:50%; cursor:pointer; font-size:12px; line-height:1;">
-                            ×
-                        </button>
-                    </div>
-                 </div>`
-            ).join('');
+        const qty = Number(s.qty) || 1;
+        const price = Number(s.price) || 0;
+        const itemTotal = price * qty;
+        const prodName = s.product ? s.product.trim() : 'منتج غير محدد';
 
-            return `
-            <tr style="border-bottom:2px solid #e2e8f0; background:#fff;">
-                <td style="padding:15px; vertical-align:top; border-left:1px solid #eee;">
-                    <div style="font-weight:800; color:#1a73e8; font-size:14px;">🏪 ${branch.name}</div>
-                    <div style="font-size:11px; color:#888; margin-top:5px;">عمليات: ${branch.items.length}</div>
-                </td>
-                <td style="padding:10px; vertical-align:top; border-left:1px solid #eee; background:#f8fafc;">
-                    ${productsListHTML}
-                </td>
-                <td style="padding:15px; vertical-align:middle; text-align:center; font-weight:bold; color:#059669; font-size:15px;">
-                    ${branch.branchTotal.toLocaleString()} ج.م
-                </td>
-            </tr>`;
-        }).join('');
+        // إذا كان المنتج موجوداً مسبقاً داخل نفس الفرع، نجمع الكمية والسعر
+        if (groupedSales[rawBranch].items[prodName]) {
+            groupedSales[rawBranch].items[prodName].qty += qty;
+            groupedSales[rawBranch].items[prodName].itemTotal += itemTotal;
+        } else {
+            // منتج جديد في هذا الفرع
+            groupedSales[rawBranch].items[prodName] = {
+                name: prodName,
+                qty: qty,
+                unitPrice: price,
+                itemTotal: itemTotal
+            };
+        }
 
-        document.getElementById('total-sales-display').innerText = grandTotal.toLocaleString() + " ج.م";
+        groupedSales[rawBranch].branchTotal += itemTotal;
+        groupedSales[rawBranch].opsCount++; // عدد الفواتير/العمليات
+        grandTotal += itemTotal;
+    });
+
+    const branchNames = Object.keys(groupedSales);
+    if(branchNames.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">لا توجد نتائج</td></tr>';
+        document.getElementById('total-sales-display').innerText = "0 ج.م";
+        return;
     }
 
+    // 2. بناء الـ HTML بنظام الفتح والإغلاق (Accordion)
+    tbody.innerHTML = branchNames.map((bName, index) => {
+        const branch = groupedSales[bName];
+        const productsArray = Object.values(branch.items);
+        
+        // بناء قائمة المنتجات المدمجة (مخفية)
+        const productsListHTML = productsArray.map(item => 
+            `<div style="border-bottom:1px dashed #cbd5e1; padding:8px 0; display:flex; justify-content:space-between; align-items:center;">
+                <div style="flex:1;">
+                    <span style="font-weight:bold; color:#1e293b; font-size:13px;">${item.name}</span>
+                    <span style="font-size:11px; background:#eff6ff; color:#1d4ed8; padding:2px 6px; border-radius:4px; margin-right:5px; font-weight:bold;">
+                        (إجمالي: ${item.qty} قطعة)
+                    </span>
+                </div>
+                <div style="font-weight:900; color:#10b981; font-size:14px;">
+                    ${item.itemTotal.toLocaleString()} ج.م
+                </div>
+             </div>`
+        ).join('');
+
+        return `
+        <!-- صف الفرع الرئيسي (قابل للضغط) -->
+        <tr class="branch-summary-row" style="border-bottom:1px solid #e2e8f0; background:#fff; cursor:pointer; transition:0.3s;" onclick="toggleBranchDetails('b-det-${index}', this)">
+            <td style="padding:15px; vertical-align:middle; border-left:1px solid #eee;">
+                <div style="font-weight:800; color:#1a73e8; font-size:14px; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-chevron-down toggle-icon" style="transition:0.3s; color:#94a3b8; font-size:12px;"></i> 
+                    🏪 ${branch.name}
+                </div>
+                <div style="font-size:11px; color:#888; margin-top:5px; margin-right:20px;">عمليات البيع: ${branch.opsCount} فاتورة</div>
+            </td>
+            <td style="padding:15px; vertical-align:middle; text-align:center; border-left:1px solid #eee; color:#475569; font-weight:bold; font-size:13px;">
+                ${productsArray.length} منتجات مختلفة
+            </td>
+            <td style="padding:15px; vertical-align:middle; text-align:center; font-weight:900; color:#059669; font-size:16px;">
+                ${branch.branchTotal.toLocaleString()} ج.م
+            </td>
+        </tr>
+        
+        <!-- صف تفاصيل المنتجات (مخفي افتراضياً) -->
+        <tr id="b-det-${index}" style="display:none; background:#f8fafc;">
+            <td colspan="3" style="padding:0;">
+                <div class="branch-details-container" style="padding:15px 25px 15px 15px; border-bottom: 3px solid #cbd5e1; border-right: 4px solid #1a73e8;">
+                    <h5 style="margin:0 0 10px 0; color:#64748b; font-size:12px;"><i class="fas fa-box-open"></i> تفاصيل مبيعات الفرع (مجمعة):</h5>
+                    ${productsListHTML}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    // تحديث الإجمالي العام
+    document.getElementById('total-sales-display').innerText = grandTotal.toLocaleString() + " ج.م";
+}
+
+// 3. دالة الفتح والإغلاق للقائمة المنسدلة
+window.toggleBranchDetails = function(targetId, rowEl) {
+    const detailsRow = document.getElementById(targetId);
+    const icon = rowEl.querySelector('.toggle-icon');
+
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = 'table-row';
+        icon.style.transform = 'rotate(180deg)';
+        icon.style.color = '#1a73e8';
+        rowEl.style.backgroundColor = '#eff6ff';
+    } else {
+        detailsRow.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+        icon.style.color = '#94a3b8';
+        rowEl.style.backgroundColor = '#fff';
+    }
+};
     // 4. دالة الحذف الجديدة للمدير
     async function deleteSaleFromDashboard(docId) {
         if(!confirm("هل أنت متأكد من حذف هذا المنتج من السجل؟")) return;
@@ -3231,53 +3290,63 @@ const allowedPanels = ['p-sales-report', 'p-analytics'];
         }
     }
 
-// دالة تحميل تقرير المبيعات Excel (تم التعديل لإضافة الكمية)
-    function downloadSalesReportExcel() {
-        if(!allSales || allSales.length === 0) {
-            alert("⚠️ لا توجد بيانات لتحميلها حالياً.");
-            return;
-        }
-
-        const sortedSales = allSales.sort((a, b) => {
-            const branchA = (a.branch || "").toLowerCase();
-            const branchB = (b.branch || "").toLowerCase();
-            if (branchA < branchB) return -1;
-            if (branchA > branchB) return 1;
-            return 0;
-        });
-
-        // --- التعديل هنا: إضافة عمود العدد والإجمالي ---
-        const excelData = sortedSales.map(s => {
-            const qty = Number(s.qty) || 1;
-            const price = Number(s.price) || 0;
-            return {
-                "تاريخ العملية": s.date,
-                "اسم الفرع": s.branch || "غير محدد",
-                "المنتج": s.product,
-                "العدد": qty,             // عمود جديد
-                "سعر الوحدة": price,
-                "الإجمالي": price * qty   // عمود جديد
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(excelData);
-
-        const wscols = [
-            {wch: 15}, // التاريخ
-            {wch: 25}, // الفرع
-            {wch: 30}, // المنتج
-            {wch: 8},  // العدد
-            {wch: 12}, // سعر الوحدة
-            {wch: 15}  // الإجمالي
-        ];
-        ws['!cols'] = wscols;
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "تقرير المبيعات");
-        
-        const dateStr = new Date().toISOString().slice(0,10);
-        XLSX.writeFile(wb, `Sales_Report_${dateStr}.xlsx`);
+// ==========================================
+// 📥 تحميل التقرير كإكسيل (بالبيانات المجمعة)
+// ==========================================
+function downloadSalesReportExcel() {
+    if(!allSales || allSales.length === 0) {
+        alert("⚠️ لا توجد بيانات لتحميلها حالياً.");
+        return;
     }
+
+    // إعادة معالجة التجميع للإكسيل لكي يكون بنفس دقة الشاشة
+    const groupedSales = {};
+    allSales.forEach(s => {
+        const rawBranch = s.branch ? s.branch.trim() : 'فرع غير محدد';
+        const qty = Number(s.qty) || 1;
+        const price = Number(s.price) || 0;
+        const prodName = s.product ? s.product.trim() : 'منتج غير محدد';
+
+        if (!groupedSales[rawBranch]) groupedSales[rawBranch] = {};
+        
+        if (groupedSales[rawBranch][prodName]) {
+            groupedSales[rawBranch][prodName].qty += qty;
+            groupedSales[rawBranch][prodName].total += (price * qty);
+        } else {
+            groupedSales[rawBranch][prodName] = { qty: qty, price: price, total: (price * qty) };
+        }
+    });
+
+    // تحويل الكائن إلى مصفوفة للإكسيل
+    const excelData = [];
+    for (let branch in groupedSales) {
+        for (let prod in groupedSales[branch]) {
+            const item = groupedSales[branch][prod];
+            excelData.push({
+                "اسم الفرع": branch,
+                "المنتج": prod,
+                "إجمالي القطع المباعة": item.qty,
+                "إجمالي الإيرادات": item.total
+            });
+        }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    const wscols = [
+        {wch: 25}, // الفرع
+        {wch: 40}, // المنتج
+        {wch: 20}, // القطع
+        {wch: 20}  // الإجمالي
+    ];
+    ws['!cols'] = wscols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "تقرير المبيعات المجمع");
+    
+    const dateStr = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `Sales_Aggregated_Report_${dateStr}.xlsx`);
+}
     // دالة إرسال الإشعارات 
 async function sendNotification() {
     if(!auth.currentUser) return alert("❌ يجب تسجيل الدخول");
