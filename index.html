@@ -463,15 +463,16 @@
     <div class="sidebar-brand"><i class="fas fa-layer-group"></i> <span>لوحة تحكم المطور</span></div>
     <h3>لوحة التحكم</h3>
     <ul class="nav-menu">
-        <li><button class="nav-link active" onclick="showPanel('p-products', this)"><i class="fas fa-box"></i> <span>المنتجات</span></button></li>
+        <li><button class="nav-link active" onclick="showPanel('p-products', this)"><i class="fas fa-box"></i> <span>اضافة منتجات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-inventory', this); loadSellinRequests();"><i class="fas fa-boxes"></i> <span>إدارة المخزون</span></button></li>
+<li><button class="nav-link" onclick="showPanel('p-targets', this); loadTargetsReport()"><i class="fas fa-bullseye"></i> <span>إدارة التارجت والمبيعات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-sales-report', this)"><i class="fas fa-chart-line"></i> <span>تقارير المبيعات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-analytics', this)"><i class="fas fa-chart-pie"></i> <span>تحليل المبيعات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-bundles', this)"><i class="fas fa-gift"></i> <span>أكواد باندل</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-ads', this)"><i class="fas fa-ad"></i> <span>الإعلانات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-notif', this)"><i class="fas fa-bullhorn"></i> <span>الإشعارات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-appearance-pro', this)"><i class="fas fa-palette"></i><span>المظهر</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-settings', this)"><i class="fas fa-cogs"></i> <span>الإعدادات</span></button></li>
-        <li><button class="nav-link" onclick="showPanel('p-sales-report', this)"><i class="fas fa-chart-line"></i> <span>تقارير المبيعات</span></button></li>
-        <li><button class="nav-link" onclick="showPanel('p-analytics', this)"><i class="fas fa-chart-pie"></i> <span>تحليل المبيعات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-maintenance', this)"><i class="fas fa-tools"></i> <span>وضع الصيانة</span></button></li>
         <li><button class="nav-link" id="nav-users" onclick="showPanel('p-users', this)"><i class="fas fa-users-cog"></i> <span>المستخدمين والصلاحيات</span></button></li>
 <li><button class="nav-link" onclick="showPanel('p-sellers', this); loadSellers()"><i class="fas fa-id-badge"></i> <span>إدارة البائعين</span></button></li>
@@ -743,6 +744,41 @@
             </thead>
             <tbody id="inventory-requests-body">
                 <tr><td colspan="7" style="padding:20px;">جاري التحميل...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- قسم إدارة التارجت والمبيعات -->
+<section id="p-targets" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="margin:0;"><i class="fas fa-bullseye" style="color:#f59e0b;"></i> إدارة التارجت ومحقق البائعين</h3>
+        <button onclick="exportTargetsToExcel()" class="btn" style="background:#217346; color:white; width:auto;">
+            <i class="fas fa-file-excel"></i> تحميل التقرير (Excel)
+        </button>
+    </div>
+
+    <div style="background:#eff6ff; padding:10px; border-radius:8px; border:1px dashed #3b82f6; margin-bottom:15px; font-size:12px; color:#1e3a8a;">
+        <i class="fas fa-info-circle"></i> هذا التقرير يجمع تلقائياً مبيعات <b>الشهر الحالي</b> ويقارنها بالتارجت المطلوب لكل بائع.
+    </div>
+
+    <!-- شريط بحث سريع -->
+    <input type="text" id="target-search" oninput="filterTargetsTable()" placeholder="🔍 ابحث باسم البائع أو الفرع..." style="margin-bottom: 10px;">
+
+    <div style="overflow-x:auto; border:1px solid #e2e8f0; border-radius:8px;">
+        <table style="width:100%; border-collapse: collapse; font-size:13px; text-align:center;">
+            <thead style="background:#1e293b; color:white;">
+                <tr>
+                    <th style="padding:12px;">البائع</th>
+                    <th style="padding:12px;">الفرع</th>
+                    <th style="padding:12px;">التارجت الشهري</th>
+                    <th style="padding:12px;">المحقق (هذا الشهر)</th>
+                    <th style="padding:12px;">نسبة التحقيق</th>
+                    <th style="padding:12px;">إجراء</th>
+                </tr>
+            </thead>
+            <tbody id="targets-list-body">
+                <tr><td colspan="6" style="padding:20px;">جاري تجميع البيانات...</td></tr>
             </tbody>
         </table>
     </div>
@@ -5543,6 +5579,151 @@ window.addStockToAllProducts = async function() {
         console.error("Bulk Stock Update Error:", error);
         Swal.fire('خطأ', 'حدث خطأ أثناء تحديث المخزون: ' + error.message, 'error');
     }
+};
+
+
+// ==========================================
+// 🎯 نظام إدارة التارجت والمبيعات (للمدير)
+// ==========================================
+let currentTargetsData = [];
+
+// 1. جلب وبناء تقرير التارجت
+async function loadTargetsReport() {
+    const tbody = document.getElementById('targets-list-body');
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;"><i class="fas fa-spinner fa-spin"></i> جاري الحساب...</td></tr>';
+    
+    try {
+        const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        
+        // أ) جلب جميع البائعين
+        const sellersSnap = await db.collection('sellers_accounts').get();
+        let sellersDict = {};
+        sellersSnap.forEach(doc => {
+            const data = doc.data();
+            sellersDict[doc.id] = {
+                uid: doc.id,
+                name: data.name,
+                branch: data.branch,
+                target: parseFloat(data.monthly_target) || 0,
+                achieved: 0
+            };
+        });
+
+        // ب) جلب مبيعات الشهر الحالي لكل الفروع
+        const salesSnap = await db.collection('sales_transactions').get();
+        salesSnap.forEach(doc => {
+            const sale = doc.data();
+            // إذا كانت المبيعة في الشهر الحالي ولها بائع مسجل لدينا
+            if (sale.date && sale.date.startsWith(currentMonth) && sellersDict[sale.sellerId]) {
+                const rowTotal = (parseFloat(sale.price) || 0) * (parseInt(sale.qty) || 1);
+                sellersDict[sale.sellerId].achieved += rowTotal;
+            }
+        });
+
+        // ج) تحويل القاموس إلى مصفوفة للرسم والتصدير
+        currentTargetsData = Object.values(sellersDict);
+        
+        // د) رسم الجدول
+        renderTargetsTable(currentTargetsData);
+
+    } catch (error) {
+        console.error("Target Load Error:", error);
+        tbody.innerHTML = `<tr><td colspan="6" style="color:red; padding:10px;">خطأ: ${error.message}</td></tr>`;
+    }
+}
+
+// 2. دالة رسم الجدول
+function renderTargetsTable(data) {
+    const tbody = document.getElementById('targets-list-body');
+    
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;">لا يوجد بائعين مسجلين.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.map(seller => {
+        let percent = seller.target > 0 ? ((seller.achieved / seller.target) * 100) : 0;
+        let percentColor = percent >= 100 ? '#10b981' : (percent >= 50 ? '#f59e0b' : '#ef4444');
+        
+        return `
+        <tr class="target-row" style="border-bottom:1px solid #f1f5f9; background:#fff;">
+            <td style="padding:10px; font-weight:bold; color:#1e293b;">${seller.name}</td>
+            <td style="padding:10px; color:#64748b;">${seller.branch}</td>
+            <td style="padding:10px; font-weight:900; color:#1a73e8;">${seller.target.toLocaleString()}</td>
+            <td style="padding:10px; font-weight:bold;">${seller.achieved.toLocaleString()}</td>
+            <td style="padding:10px; font-weight:900; color:${percentColor}; direction:ltr;">${percent.toFixed(1)}%</td>
+            <td style="padding:10px;">
+                <button onclick="editSellerTarget('${seller.uid}', '${seller.name}', ${seller.target})" class="btn btn-update" style="padding:6px 12px; margin:0 auto; width:auto; font-size:11px;">
+                    <i class="fas fa-edit"></i> تعديل التارجت
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// 3. فلترة الجدول محلياً
+function filterTargetsTable() {
+    const q = document.getElementById('target-search').value.toLowerCase();
+    const filtered = currentTargetsData.filter(s => 
+        s.name.toLowerCase().includes(q) || s.branch.toLowerCase().includes(q)
+    );
+    renderTargetsTable(filtered);
+}
+
+// 4. دالة تعديل التارجت للبائع
+window.editSellerTarget = function(uid, name, currentTarget) {
+    Swal.fire({
+        title: `تعديل التارجت لـ (${name})`,
+        input: 'number',
+        inputLabel: 'أدخل قيمة التارجت الشهري بالجنيه',
+        inputValue: currentTarget,
+        showCancelButton: true,
+        confirmButtonText: 'حفظ التارجت',
+        cancelButtonText: 'إلغاء',
+        inputValidator: (value) => {
+            if (!value || value < 0) return 'الرجاء إدخال رقم صحيح!';
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const newTarget = parseFloat(result.value);
+                await db.collection('sellers_accounts').doc(uid).update({
+                    monthly_target: newTarget
+                });
+                Swal.fire('تم', 'تم تحديث التارجت بنجاح', 'success');
+                loadTargetsReport(); // إعادة تحميل البيانات لتحديث النسبة
+            } catch (e) {
+                Swal.fire('خطأ', 'فشل التحديث: ' + e.message, 'error');
+            }
+        }
+    });
+};
+
+// 5. دالة تصدير تقرير التارجت والمبيعات إلى إكسيل
+window.exportTargetsToExcel = function() {
+    if (currentTargetsData.length === 0) return alert("لا توجد بيانات للتصدير.");
+
+    const excelData = currentTargetsData.map(s => {
+        let percent = s.target > 0 ? ((s.achieved / s.target) * 100) : 0;
+        return {
+            "اسم البائع": s.name,
+            "الفرع": s.branch,
+            "التارجت المطلوب": s.target,
+            "ما تم تحقيقه": s.achieved,
+            "نسبة الإنجاز (%)": percent.toFixed(2) + "%"
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    // تنسيق عرض الأعمدة
+    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 15}];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "تقرير المحقق والتارجت");
+    
+    const dateStr = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `Sales_Target_Report_${dateStr}.xlsx`);
 };
 </script>
 </body>
