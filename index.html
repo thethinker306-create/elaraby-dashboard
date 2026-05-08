@@ -3166,12 +3166,11 @@ function renderSalesTable(sales, branchFilter) {
     let grandTotal = 0; 
     const groupedSales = {};
 
-    // 1. خوارزمية التجميع والدمج الذكي
+    // 1. خوارزمية التجميع والدمج الذكي (مع حفظ مراجع الفواتير الأصلية)
     sales.forEach(s => {
         const rawBranch = s.branch ? s.branch.trim() : 'فرع غير محدد';
         if (branchFilter && !rawBranch.toLowerCase().includes(branchFilter)) return;
 
-        // إذا لم يكن الفرع موجوداً، ننشئه
         if (!groupedSales[rawBranch]) {
             groupedSales[rawBranch] = { name: rawBranch, items: {}, branchTotal: 0, opsCount: 0 };
         }
@@ -3181,22 +3180,23 @@ function renderSalesTable(sales, branchFilter) {
         const itemTotal = price * qty;
         const prodName = s.product ? s.product.trim() : 'منتج غير محدد';
 
-        // إذا كان المنتج موجوداً مسبقاً داخل نفس الفرع، نجمع الكمية والسعر
         if (groupedSales[rawBranch].items[prodName]) {
             groupedSales[rawBranch].items[prodName].qty += qty;
             groupedSales[rawBranch].items[prodName].itemTotal += itemTotal;
+            // حفظ جميع أرقام الفواتير (IDs) المرتبطة بهذا التجميع لكي نتمكن من خصمها لاحقاً
+            groupedSales[rawBranch].items[prodName].invoices.push({id: s.id, qty: qty, price: price});
         } else {
-            // منتج جديد في هذا الفرع
             groupedSales[rawBranch].items[prodName] = {
                 name: prodName,
                 qty: qty,
                 unitPrice: price,
-                itemTotal: itemTotal
+                itemTotal: itemTotal,
+                invoices: [{id: s.id, qty: qty, price: price}] // مصفوفة الفواتير
             };
         }
 
         groupedSales[rawBranch].branchTotal += itemTotal;
-        groupedSales[rawBranch].opsCount++; // عدد الفواتير/العمليات
+        groupedSales[rawBranch].opsCount++; 
         grandTotal += itemTotal;
     });
 
@@ -3207,28 +3207,38 @@ function renderSalesTable(sales, branchFilter) {
         return;
     }
 
-    // 2. بناء الـ HTML بنظام الفتح والإغلاق (Accordion)
+    // 2. بناء الـ HTML
     tbody.innerHTML = branchNames.map((bName, index) => {
         const branch = groupedSales[bName];
         const productsArray = Object.values(branch.items);
         
-        // بناء قائمة المنتجات المدمجة (مخفية)
-        const productsListHTML = productsArray.map(item => 
-            `<div style="border-bottom:1px dashed #cbd5e1; padding:8px 0; display:flex; justify-content:space-between; align-items:center;">
+        // بناء قائمة المنتجات مع زر الحذف المتقدم
+        const productsListHTML = productsArray.map(item => {
+            // تحويل مصفوفة الفواتير إلى نص مشفر لإرسالها للدالة عند الضغط
+            const invoicesDataStr = encodeURIComponent(JSON.stringify(item.invoices));
+            
+            return `
+            <div style="border-bottom:1px dashed #cbd5e1; padding:8px 0; display:flex; justify-content:space-between; align-items:center;">
                 <div style="flex:1;">
                     <span style="font-weight:bold; color:#1e293b; font-size:13px;">${item.name}</span>
                     <span style="font-size:11px; background:#eff6ff; color:#1d4ed8; padding:2px 6px; border-radius:4px; margin-right:5px; font-weight:bold;">
                         (إجمالي: ${item.qty} قطعة)
                     </span>
                 </div>
-                <div style="font-weight:900; color:#10b981; font-size:14px;">
-                    ${item.itemTotal.toLocaleString()} ج.م
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <div style="font-weight:900; color:#10b981; font-size:14px;">
+                        ${item.itemTotal.toLocaleString()} ج.م
+                    </div>
+                    <!-- زر الحذف الذكي -->
+                    <button onclick="smartDeleteProduct('${item.name}', ${item.qty}, '${invoicesDataStr}')" title="تعديل أو حذف المبيعات" 
+                            style="background:#fee2e2; color:#ef4444; border:none; width:25px; height:25px; border-radius:6px; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center; transition:0.2s;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                 </div>
-             </div>`
-        ).join('');
+             </div>`;
+        }).join('');
 
         return `
-        <!-- صف الفرع الرئيسي (قابل للضغط) -->
         <tr class="branch-summary-row" style="border-bottom:1px solid #e2e8f0; background:#fff; cursor:pointer; transition:0.3s;" onclick="toggleBranchDetails('b-det-${index}', this)">
             <td style="padding:15px; vertical-align:middle; border-left:1px solid #eee;">
                 <div style="font-weight:800; color:#1a73e8; font-size:14px; display:flex; align-items:center; gap:8px;">
@@ -3244,8 +3254,6 @@ function renderSalesTable(sales, branchFilter) {
                 ${branch.branchTotal.toLocaleString()} ج.م
             </td>
         </tr>
-        
-        <!-- صف تفاصيل المنتجات (مخفي افتراضياً) -->
         <tr id="b-det-${index}" style="display:none; background:#f8fafc;">
             <td colspan="3" style="padding:0;">
                 <div class="branch-details-container" style="padding:15px 25px 15px 15px; border-bottom: 3px solid #cbd5e1; border-right: 4px solid #1a73e8;">
@@ -3256,9 +3264,123 @@ function renderSalesTable(sales, branchFilter) {
         </tr>`;
     }).join('');
 
-    // تحديث الإجمالي العام
     document.getElementById('total-sales-display').innerText = grandTotal.toLocaleString() + " ج.م";
 }
+
+window.toggleBranchDetails = function(targetId, rowEl) {
+    const detailsRow = document.getElementById(targetId);
+    const icon = rowEl.querySelector('.toggle-icon');
+
+    // منع زر الحذف من التسبب في إغلاق القائمة
+    if (event && event.target.closest('button')) return;
+
+    if (detailsRow.style.display === 'none') {
+        detailsRow.style.display = 'table-row';
+        icon.style.transform = 'rotate(180deg)';
+        icon.style.color = '#1a73e8';
+        rowEl.style.backgroundColor = '#eff6ff';
+    } else {
+        detailsRow.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+        icon.style.color = '#94a3b8';
+        rowEl.style.backgroundColor = '#fff';
+    }
+};
+
+// ==========================================
+// 🗑️ نظام الحذف والخصم الذكي (Smart Deduct)
+// ==========================================
+window.smartDeleteProduct = async function(prodName, totalQty, invoicesStr) {
+    // 1. فك تشفير الفواتير الأصلية
+    const invoices = JSON.parse(decodeURIComponent(invoicesStr));
+    let qtyToRemove = 0;
+
+    // 2. إذا كانت قطعة واحدة فقط، نظهر رسالة تأكيد عادية
+    if (totalQty === 1) {
+        const confirm = await Swal.fire({
+            title: 'حذف المنتج؟',
+            text: `هل أنت متأكد من حذف (${prodName}) بالكامل؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء'
+        });
+        if (!confirm.isConfirmed) return;
+        qtyToRemove = 1;
+    } 
+    // 3. إذا كان أكثر من قطعة، نظهر نافذة لتحديد العدد!
+    else {
+        const { value: selectedQty } = await Swal.fire({
+            title: 'إلغاء مبيعات',
+            html: `المنتج: <b>${prodName}</b><br><br>إجمالي القطع المباعة: <b style="color:var(--main-blue);">${totalQty}</b><br><br>كم عدد القطع التي تريد إلغاءها؟`,
+            input: 'number',
+            inputAttributes: {
+                min: 1,
+                max: totalQty,
+                step: 1
+            },
+            inputValue: 1, // الافتراضي قطعة واحدة
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'تنفيذ الإلغاء',
+            cancelButtonText: 'إلغاء',
+            inputValidator: (value) => {
+                if (!value || value <= 0) return 'يجب إدخال رقم صحيح!';
+                if (value > totalQty) return `لا يمكنك حذف أكثر من ${totalQty} قطعة!`;
+            }
+        });
+
+        if (!selectedQty) return;
+        qtyToRemove = parseInt(selectedQty);
+    }
+
+    // 4. خوارزمية الخصم من الفواتير (Firestore Batch)
+    Swal.fire({
+        title: 'جاري المعالجة...',
+        text: 'يتم الآن تصحيح سجلات الفواتير',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const batch = db.batch();
+        let remainingToRemove = qtyToRemove;
+
+        // المرور على الفواتير التي تحتوي على هذا المنتج واحدة تلو الأخرى لخصم الكمية
+        for (let i = 0; i < invoices.length; i++) {
+            if (remainingToRemove <= 0) break; // انتهينا من الخصم المطلوب
+
+            let inv = invoices[i];
+            const saleRef = db.collection('sales_transactions').doc(inv.id);
+
+            // إذا كانت الفاتورة تحتوي على كمية أقل أو تساوي المطلوب خصمها
+            if (inv.qty <= remainingToRemove) {
+                // نحذف الفاتورة بالكامل
+                batch.delete(saleRef);
+                remainingToRemove -= inv.qty;
+            } 
+            // إذا كانت الفاتورة تحتوي على قطع أكثر من المطلوب خصمها
+            else {
+                // نقوم بتحديث الفاتورة فقط (تنقيص الكمية)
+                const newQty = inv.qty - remainingToRemove;
+                batch.update(saleRef, { qty: newQty });
+                remainingToRemove = 0;
+            }
+        }
+
+        await batch.commit();
+
+        Swal.fire('تم بنجاح', `تم إلغاء ${qtyToRemove} قطعة من السجل.`, 'success');
+        
+        // تحديث الجدول ليعكس الأرقام الجديدة
+        loadSalesReports();
+
+    } catch (e) {
+        console.error(e);
+        Swal.fire('خطأ', 'فشلت عملية الحذف: ' + e.message, 'error');
+    }
+};
 
 // 3. دالة الفتح والإغلاق للقائمة المنسدلة
 window.toggleBranchDetails = function(targetId, rowEl) {
