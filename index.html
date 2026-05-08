@@ -142,7 +142,7 @@
         .btn { 
             border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; 
             font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center;
-            gap: 5px; color: white; transition: 0.2s; height: 32px; flex: 1;
+            gap: 5px; color: white; transition: 0.2s; height: 32px; 
         }
         .btn-save { background: var(--success); }
         .btn-update { background: var(--warning); }
@@ -452,6 +452,7 @@
     <h3>لوحة التحكم</h3>
     <ul class="nav-menu">
         <li><button class="nav-link active" onclick="showPanel('p-products', this)"><i class="fas fa-box"></i> <span>المنتجات</span></button></li>
+        <li><button class="nav-link" onclick="showPanel('p-inventory', this); loadSellinRequests();"><i class="fas fa-boxes"></i> <span>إدارة المخزون</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-bundles', this)"><i class="fas fa-gift"></i> <span>أكواد باندل</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-ads', this)"><i class="fas fa-ad"></i> <span>الإعلانات</span></button></li>
         <li><button class="nav-link" onclick="showPanel('p-notif', this)"><i class="fas fa-bullhorn"></i> <span>الإشعارات</span></button></li>
@@ -671,6 +672,70 @@
         </div>
         <div id="prod-upload-status" style="margin-top:10px; font-size:12px; font-weight:bold; text-align:center; display:none;"></div>
     </section>
+
+<section id="p-inventory" class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
+        <h3 style="margin:0; font-size:16px; color:var(--text-main);">
+            <i class="fas fa-boxes" style="color:var(--main-blue);"></i> إدارة المخزون وطلبات (Sell In)
+        </h3>
+        <button onclick="loadSellinRequests()" class="btn btn-gray" style="width:auto;"><i class="fas fa-sync"></i> تحديث</button>
+    </div>
+
+    <!-- كروت إحصائيات المخزون -->
+    <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card" style="border-left:4px solid #f59e0b;">
+            <i class="fas fa-clock stat-icon" style="color:#f59e0b; background:#fffbeb;"></i>
+            <div><span class="stat-value" id="inv-pending-count">0</span><span class="stat-label">طلبات معلقة</span></div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #10b981;">
+            <i class="fas fa-check-circle stat-icon" style="color:#10b981; background:#ecfdf5;"></i>
+            <div><span class="stat-value" id="inv-approved-count">0</span><span class="stat-label">تم اعتمادها</span></div>
+        </div>
+    </div>
+<!-- ========================================= -->
+    <!-- وحدة الإضافة الشاملة للمخزون (جـديـد) -->
+    <!-- ========================================= -->
+    <div style="background: #eff6ff; border: 1px dashed #3b82f6; padding: 15px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.05);">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <div style="background:#3b82f6; color:white; width:35px; height:35px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px;">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div>
+                <h4 style="margin: 0; color: #1e3a8a; font-size: 14px;">الإضافة الشاملة لجميع المنتجات</h4>
+                <p style="margin: 3px 0 0; font-size: 11px; color: #64748b; font-weight: bold;">أدخل الكمية التي تريد إضافتها لرصيد (كــــل) المنتجات دفعة واحدة.</p>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px; align-items: center; margin-top:15px;">
+            <input type="number" id="global-stock-qty" placeholder="مثال: 50" min="1" style="flex: 2; height: 45px; font-weight: bold; font-size: 16px; text-align: center; border-color:#bfdbfe;">
+            
+            <button onclick="addStockToAllProducts()" class="btn btn-save" style="flex: 1; height: 45px; font-size: 13px; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);">
+                <i class="fas fa-bolt"></i> إضافة للجميع
+            </button>
+        </div>
+    </div>
+    <!-- جدول الطلبات -->
+    <h4 style="margin:0 0 10px 0; font-size:13px; color:#475569;">📥 طلبات الإضافة للمخزون الواردة من الفروع</h4>
+    <div style="overflow-x:auto; background:white; border:1px solid #e2e8f0; border-radius:10px;">
+        <table style="width:100%; border-collapse: collapse; font-size:12px; text-align:center;">
+            <thead style="background:#f8fafc; color:#334155; border-bottom:2px solid #cbd5e1;">
+                <tr>
+                    <th style="padding:12px;">التاريخ</th>
+                    <th style="padding:12px;">البائع</th>
+                    <th style="padding:12px; text-align:right;">المنتج</th>
+                    <th style="padding:12px;">الكمية السابقة</th>
+                    <th style="padding:12px; color:#1a73e8;">المراد إضافته (+)</th>
+                    <th style="padding:12px;">الحالة</th>
+                    <th style="padding:12px;">إجراء</th>
+                </tr>
+            </thead>
+            <tbody id="inventory-requests-body">
+                <tr><td colspan="7" style="padding:20px;">جاري التحميل...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
     <section id="p-notif" class="panel">
         <h3 style="margin:0 0 10px 0; font-size:14px;">🔔 إرسال تنبيه للتطبيق</h3>
         <div class="form-group"><label>نص الإشعار</label><input type="text" id="notifyMsg"></div>
@@ -5072,6 +5137,222 @@ function toggleAccountInput() {
         input.value = '';
     }
 }
+
+// ==========================================
+// 📦 نظام إدارة المخزون (Admin Side)
+// ==========================================
+
+let sellinUnsubscribe = null;
+
+function loadSellinRequests() {
+    const tbody = document.getElementById('inventory-requests-body');
+    const pendingBadge = document.getElementById('inv-pending-count');
+    const approvedBadge = document.getElementById('inv-approved-count');
+
+    if (sellinUnsubscribe) sellinUnsubscribe();
+
+    sellinUnsubscribe = db.collection('sellin_requests')
+        .orderBy('createdAt', 'desc')
+        .limit(100)
+        .onSnapshot(snap => {
+            if (snap.empty) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; color:#94a3b8;">لا توجد طلبات إضافة مخزون حالياً.</td></tr>';
+                pendingBadge.innerText = "0"; approvedBadge.innerText = "0";
+                return;
+            }
+
+            let pendingCount = 0;
+            let approvedCount = 0;
+
+            const html = snap.docs.map(doc => {
+                const d = doc.data();
+                if (d.status === 'pending') pendingCount++;
+                if (d.status === 'approved') approvedCount++;
+
+                let statusHtml = '';
+                let actionsHtml = '';
+
+                if (d.status === 'pending') {
+                    statusHtml = `<span style="background:#fef3c7; color:#d97706; padding:3px 8px; border-radius:12px; font-weight:bold;">قيد المراجعة ⏳</span>`;
+                    actionsHtml = `
+                        <div style="display:flex; gap:5px; justify-content:center;">
+                            <button onclick="handleSellIn('${doc.id}', '${d.productId}', ${d.currentStock}, ${d.addedQuantity}, 'approve')" class="btn btn-save" style="padding:4px 8px; height:auto;" title="موافقة وإضافة الرصيد"><i class="fas fa-check"></i></button>
+                            <button onclick="handleSellIn('${doc.id}', null, 0, 0, 'reject')" class="btn btn-red" style="padding:4px 8px; height:auto;" title="رفض الطلب"><i class="fas fa-times"></i></button>
+                        </div>`;
+                } else if (d.status === 'approved') {
+                    statusHtml = `<span style="background:#dcfce7; color:#16a34a; padding:3px 8px; border-radius:12px; font-weight:bold;">تم الاعتماد ✅</span>`;
+                    actionsHtml = `<span style="color:#94a3b8;">-</span>`;
+                } else {
+                    statusHtml = `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:12px; font-weight:bold;">مرفوض ❌</span>`;
+                    actionsHtml = `<span style="color:#94a3b8;">-</span>`;
+                }
+
+                return `
+                <tr style="border-bottom:1px solid #f1f5f9; ${d.status === 'pending' ? 'background:#f8fafc;' : ''}">
+                    <td style="padding:10px; color:#64748b;">${d.date || '-'}</td>
+                    <td style="padding:10px; font-weight:bold;">${d.sellerName}</td>
+                    <td style="padding:10px; text-align:right;">
+                        <div style="font-weight:bold; color:#0f172a;">${d.productName}</div>
+                        <div style="font-size:10px; color:#64748b;">${d.productId}</div>
+                    </td>
+                    <td style="padding:10px; font-weight:bold; color:#64748b;">${d.currentStock}</td>
+                    <td style="padding:10px; font-weight:900; color:#1a73e8; font-size:14px;">+${d.addedQuantity}</td>
+                    <td style="padding:10px;">${statusHtml}</td>
+                    <td style="padding:10px;">${actionsHtml}</td>
+                </tr>`;
+            }).join('');
+
+            tbody.innerHTML = html;
+            pendingBadge.innerText = pendingCount;
+            approvedBadge.innerText = approvedCount;
+        });
+}
+
+window.handleSellIn = async function(requestId, productId, currentStock, addedQty, action) {
+    if (action === 'approve') {
+        const confirm = await Swal.fire({
+            title: 'اعتماد الطلب؟',
+            text: `سيتم إضافة (${addedQty}) لرصيد المنتج، ليصبح الرصيد الكلي (${currentStock + addedQty}).`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'نعم، اعتماد'
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            const batch = db.batch();
+            
+            // 1. تحديث كمية المنتج في قاعدة المنتجات
+            const productRef = db.collection('products').doc(productId);
+            // جلب الرصيد الحقيقي من الداتا بيز الآن (لضمان عدم وجود تعارض)
+            const prodDoc = await productRef.get();
+            let realCurrentStock = 0;
+            if (prodDoc.exists) {
+                realCurrentStock = parseInt(prodDoc.data().stock) || 0;
+            }
+            const newTotalStock = realCurrentStock + addedQty;
+
+            batch.set(productRef, { stock: newTotalStock, updatedAt: Date.now() }, { merge: true });
+
+            // 2. تحديث حالة الطلب
+            const requestRef = db.collection('sellin_requests').doc(requestId);
+            batch.update(requestRef, { status: 'approved', processedAt: Date.now() });
+
+            await batch.commit();
+            
+            // 3. تحديث الكاش (metadata) للموبايل ليعرف أن هناك تغير في الداتا
+            await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+
+            Swal.fire('تم الاعتماد', `تم تحديث رصيد المنتج بنجاح. الرصيد الجديد: ${newTotalStock}`, 'success');
+
+        } catch (e) {
+            Swal.fire('خطأ', 'فشل تحديث البيانات: ' + e.message, 'error');
+        }
+
+    } else if (action === 'reject') {
+        if(confirm("هل أنت متأكد من رفض هذا الطلب؟")) {
+            await db.collection('sellin_requests').doc(requestId).update({ status: 'rejected', processedAt: Date.now() });
+        }
+    }
+}
+// ==========================================
+// 🚀 نظام الإضافة الشاملة للمخزون (Bulk Stock Update)
+// ==========================================
+window.addStockToAllProducts = async function() {
+    const qtyInput = document.getElementById('global-stock-qty').value;
+    const qtyToAdd = parseInt(qtyInput);
+
+    // 1. التحقق من الرقم
+    if (isNaN(qtyToAdd) || qtyToAdd <= 0) {
+        return Swal.fire('تنبيه', 'يرجى إدخال كمية صحيحة (أكبر من صفر)', 'warning');
+    }
+
+    // 2. رسالة تحذيرية وتأكيدية للأدمن
+    const confirmAction = await Swal.fire({
+        title: 'هل أنت متأكد؟',
+        text: `سيتم إضافة (${qtyToAdd}) قطعة إلى الرصيد الحالي لـ (كــل المـنـتـجـات) في النظام!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#ef4444',
+        confirmButtonText: 'نعم، أضف للجميع',
+        cancelButtonText: 'إلغاء'
+    });
+
+    if (!confirmAction.isConfirmed) return;
+
+    // 3. إظهار شاشة تحميل لأن العملية قد تأخذ ثواني
+    Swal.fire({
+        title: 'جاري التحديث الشامل...',
+        html: 'يرجى الانتظار وعدم إغلاق الصفحة.<br><br>المنتجات المحدثة: <b id="bulk-stock-progress">0</b>',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // جلب جميع المنتجات من قاعدة البيانات
+        const snapshot = await db.collection('products').get();
+        
+        if (snapshot.empty) {
+            return Swal.fire('تنبيه', 'لا توجد منتجات في قاعدة البيانات لإضافة المخزون إليها.', 'info');
+        }
+
+        // Firebase لا يسمح بتحديث أكثر من 500 عنصر في الطلب الواحد
+        // لذا نستخدم نظام الـ Batches الذكي
+        let batches = [];
+        let currentBatch = db.batch();
+        let currentBatchOperationCount = 0;
+        let totalUpdatedCount = 0;
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const currentStock = parseInt(data.stock) || 0; // إذا لم يكن له مخزون يعتبر 0
+            const newTotalStock = currentStock + qtyToAdd;
+
+            currentBatch.update(doc.ref, { 
+                stock: newTotalStock, 
+                updatedAt: Date.now() 
+            });
+            
+            currentBatchOperationCount++;
+            totalUpdatedCount++;
+
+            // تحديث العداد في الشاشة
+            document.getElementById('bulk-stock-progress').innerText = totalUpdatedCount;
+
+            // إذا وصلنا لـ 400 عملية (أقل من الحد الأقصى 500 للأمان)، نقوم بإرسال الدفعة وفتح دفعة جديدة
+            if (currentBatchOperationCount === 400) {
+                batches.push(currentBatch.commit());
+                currentBatch = db.batch();
+                currentBatchOperationCount = 0;
+            }
+        });
+
+        // إرسال ما تبقى من العمليات
+        if (currentBatchOperationCount > 0) {
+            batches.push(currentBatch.commit());
+        }
+
+        // انتظار انتهاء جميع الدفعات
+        await Promise.all(batches);
+
+        // 4. إخبار تطبيقات البائعين (الموبايل) بتحديث الكاش لرؤية المخزون الجديد
+        await db.collection("app_config").doc("metadata").set({ last_update_time: Date.now() }, {merge:true});
+
+        // تفريغ الحقل
+        document.getElementById('global-stock-qty').value = '';
+
+        // 5. رسالة النجاح
+        Swal.fire({
+            title: 'تم بنجاح! ✨',
+            text: `تمت إضافة ${qtyToAdd} قطعة إلى رصيد (${totalUpdatedCount}) منتج بنجاح.`,
+            icon: 'success',
+            confirmButtonText: 'ممتاز'
+        });
+
+    } catch (error) {
+        console.error("Bulk Stock Update Error:", error);
+        Swal.fire('خطأ', 'حدث خطأ أثناء تحديث المخزون: ' + error.message, 'error');
+    }
+};
 </script>
 </body>
 </html>
