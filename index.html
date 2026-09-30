@@ -4802,70 +4802,44 @@ function convertArabicToEnglishNumbers(str) {
 }
 
 // ==========================================
-// 🚀 نظام جلب صفحات العربي الخارق (تخطي حماية Cloudflare)
-// ==========================================
-// ==========================================
-// 🚀 نظام جلب صفحات العربي (الإصدار المستقر والنهائي)
+// 🚀 نظام جلب صفحات العربي (تخطي حماية Cloudflare النهائي)
 // ==========================================
 async function getElArabyHtml(targetUrl) {
-    // 💡 السر هنا: تمت إزالة الطابع الزمني (nocache) الذي كان يثير شكوك جدار Cloudflare ويؤدي للحظر الفوري!
-    
-    const proxies = [
-        targetUrl, // 1. تجربة الاتصال المباشر أولاً (في حال استخدامك لإضافة متصفح Allow CORS)
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, // 2. أقوى بروكسي خام
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, // 3. بروكسي بديل
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}` // 4. بروكسي احتياطي
-    ];
+    // ⚠️⚠️ ضع مفتاح ScraperAPI الخاص بك هنا بين علامات التنصيص ⚠️⚠️
+    const SCRAPER_API_KEY = "ضع_مفتاحك_هنا"; 
 
-    for (let proxy of proxies) {
-        try {
-            let res = await fetch(proxy);
-            if (!res.ok) continue;
-            
-            let html = await res.text();
-            
-            let parser = new DOMParser();
-            let doc = parser.parseFromString(html, "text/html");
-            
-            // 🎯 الفحص القاطع بناءً على كلاساتك: التأكد من وجود أي من العناصر المطلوبة
-            if (doc.querySelector('.page-title') || 
-                doc.querySelector('.product-info-main') || 
-                doc.querySelector('.product-info-price') || 
-                doc.querySelector('.data.item.content')) {
-                return doc; // تم اختراق الحماية وجلب الصفحة بنجاح!
-            }
-        } catch (e) {
-            // صمت تام وتجربة السيرفر التالي
-            continue;
-        }
+    // تنبيه للمستخدم إذا لم يضع المفتاح
+    if (!SCRAPER_API_KEY || SCRAPER_API_KEY === "ضع_مفتاحك_هنا") {
+        throw new Error("جدار حماية العربي يمنع السحب المباشر.\nلحل المشكلة نهائياً: سجل مجاناً في scraperapi.com وضع الـ API Key الخاص بك في الكود وسيعمل فوراً.");
     }
-    
-    throw new Error("فشل السحب! جدار Cloudflare صد الطلبات.\n🔥 الحل النهائي والفعّال 100%: قم بتثبيت إضافة 'Allow CORS' في متصفح جوجل كروم وقم بتشغيلها، وسيعمل السكربت بلمح البصر دون أي أعطال.");
-}
-// استخراج اسم اللون من عنوان المنتج بذكاء
-function extractColorFromTitle(title) {
-    if(!title) return null;
-    const possibleColors =['أسود','اسود','أبيض','ابيض','أحمر','احمر','أزرق','ازرق','فضي','سيلفر','رمادي','ذهبي','جولد','أخضر','اخضر','بني','بيج','أصفر','اصفر','برتقالي','وردي','بينك','روز','بنفسجي','استانلس','كحلي','سماوي','نبيتي', 'شامبين'];
-    for (let pc of possibleColors) {
-        // نبحث عن الكلمة ككلمة مستقلة أو جزء من العنوان
-        if (title.includes(pc)) return pc;
+
+    // بناء رابط الـ API لكسر الحماية (مع تفعيل render=true لجلب الصور المخفية)
+    const proxyUrl = `https://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true`;
+
+    try {
+        let res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("تأكد من صحة مفتاح الـ API أو أن رابط المنتج صحيح.");
+        
+        let html = await res.text();
+        let parser = new DOMParser();
+        let doc = parser.parseFromString(html, "text/html");
+        
+        return doc;
+    } catch (e) {
+        throw new Error(e.message);
     }
-    return null;
 }
 
 // ==========================================
-// 2. الدالة الرئيسية (Scraping Engine)
+// 🎯 دالة سحب بيانات المنتج بالكامل (وفقاً للكلاسات المطلوبة)
 // ==========================================
 async function fetchProductData() {
     const inputVal = document.getElementById("productId").value.trim();
-    if (!inputVal) {
-        Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج أولاً!', 'warning');
-        return;
-    }
+    if (!inputVal) return Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج أولاً!', 'warning');
 
     Swal.fire({
         title: 'جاري السحب العميق...',
-        html: 'يتم الآن الدخول لصفحة المنتج الحقيقية وسحب السعر والمواصفات والصور...',
+        html: 'يتم الآن كسر الحماية وسحب البيانات والصور...',
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
@@ -4874,12 +4848,10 @@ async function fetchProductData() {
         let isDirectUrl = inputVal.startsWith('http');
         let targetUrl = isDirectUrl ? inputVal : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
         
-        // 1️⃣ جلب الصفحة باستخدام النظام الخارق الجديد
         let doc = await getElArabyHtml(targetUrl);
         let mainProductDoc = doc;
-        let extractedColors = [];
 
-        // 2️⃣ إذا كنا في صفحة بحث، نصطاد الرابط وندخل لصفحة المنتج مباشرة
+        // الدخول لصفحة المنتج إذا كنا في صفحة البحث
         if (!isDirectUrl && doc.querySelector('.products.list.items.product-items')) {
             const productCards = doc.querySelectorAll('.product-item-info');
             let matchedLink = null;
@@ -4897,40 +4869,37 @@ async function fetchProductData() {
             if (matchedLink) {
                 mainProductDoc = await getElArabyHtml(matchedLink);
             } else {
-                throw new Error("لم يتم العثور على منتج بهذا الكود في الموقع.");
+                throw new Error("لم يتم العثور على منتج بهذا الكود.");
             }
         }
 
-     // ==========================================
-        // 3️⃣ استخراج البيانات (تطبيق حرفي للكلاسات التي طلبتها)
+        // ==========================================
+        // استخراج البيانات (تطبيق كلاساتك حرفياً)
         // ==========================================
         
-        // 🔸 1. استخراج الكود / الاسم (page-title أو البديل product-info-main)
+        // 1. استخراج الكود / الاسم (page-title)
         let fetchedName = "";
         const titleEl = mainProductDoc.querySelector('.page-title') || mainProductDoc.querySelector('.product-info-main');
         if (titleEl) fetchedName = titleEl.innerText.replace(/\n/g, ' ').trim();
 
-        // 🔸 2. استخراج السعر (product-info-price أو البديل product-info-main)
+        // 2. استخراج السعر (product-info-price)
         let fetchedPrice = "0";
         const priceSection = mainProductDoc.querySelector('.product-info-price') || mainProductDoc.querySelector('.product-info-main');
-        if (priceSection) {
-            // الفلتر يستخرج الرقم فوراً من الكلاس
-            fetchedPrice = convertArabicToEnglishNumbers(priceSection.innerText);
-        }
+        if (priceSection) fetchedPrice = convertArabicToEnglishNumbers(priceSection.innerText);
 
-        // 🔸 3. استخراج التفاصيل (data item content أو البديل product-info-main)
+        // 3. استخراج التفاصيل (data item content)
         let fetchedDetails = "";
         const detailsSection = mainProductDoc.querySelector('.data.item.content') || mainProductDoc.querySelector('.product-info-main');
         if (detailsSection) {
             let cloneDesc = detailsSection.cloneNode(true);
-            cloneDesc.querySelectorAll('table, script, style').forEach(t => t.remove()); // تنظيف الكود
+            cloneDesc.querySelectorAll('table, script, style').forEach(t => t.remove()); 
             cloneDesc.querySelectorAll('li, br, p').forEach(el => el.append('\n'));
             fetchedDetails = cloneDesc.innerText.trim();
             fetchedDetails = fetchedDetails.split('\n').map(l => l.trim()).filter(l => l.length > 1).join('\n');
             if (fetchedDetails) fetchedDetails = `[التفاصيل والمواصفات]\n` + fetchedDetails;
         }
 
-        // 🔸 4. استخراج الصور (product media أو البديل product-info-main)
+        // 4. استخراج الصور (product media)
         let allGalleryImages = [];
         const mediaSection = mainProductDoc.querySelector('.product.media') || mainProductDoc.querySelector('.product-info-main');
         if (mediaSection) {
@@ -4941,65 +4910,37 @@ async function fetchProductData() {
                 }
             });
         }
-        
-        // الخطة البديلة للصور (إذا كانت الصور مخفية بسكريبت ماجنتو)
-        if (allGalleryImages.length === 0) {
-            mainProductDoc.querySelectorAll('script[type="text/x-magento-init"]').forEach(script => {
-                if (script.textContent.includes('mage/gallery/gallery')) {
-                    try {
-                        const config = JSON.parse(script.textContent);
-                        const images = config['[data-gallery-role=gallery-placeholder]']['mage/gallery/gallery']['data'];
-                        images.forEach(img => { if (img.full || img.img) allGalleryImages.push((img.full || img.img).replace(/\/cache\/.*?\//g, '/')); });
-                    } catch (e) {}
-                }
-            });
-        }
-        
         allGalleryImages = [...new Set(allGalleryImages)];
         let finalMainImages = allGalleryImages.slice(0, 4);
 
-        // سحب لون من العنوان
+        // 5. استخراج لون إن وجد
+        let extractedColors = [];
         let foundColor = extractColorFromTitle(fetchedName);
-        if (foundColor && finalMainImages.length > 0) {
-            extractedColors.push({ name: foundColor, url: finalMainImages[0] });
-        }
+        if (foundColor && finalMainImages.length > 0) extractedColors.push({ name: foundColor, url: finalMainImages[0] });
 
-        // ==========================================
-        // ☁️ الرفع السحابي (Cloudinary)
-        // ==========================================
+        // الرفع السحابي (Cloudinary)
         let cloudMainUrls = [];
         const uploadToCloudinary = async (url) => {
             if(!url) return null;
             try {
-                const fd = new FormData();
-                fd.append("file", url);
-                fd.append("upload_preset", "elaraby_broducts"); 
+                const fd = new FormData(); fd.append("file", url); fd.append("upload_preset", "elaraby_broducts"); 
                 const res = await fetch(`https://api.cloudinary.com/v1_1/dkuow8vxw/image/upload`, { method: "POST", body: fd });
-                const d = await res.json();
-                return d.secure_url ? d.secure_url : null;
+                const d = await res.json(); return d.secure_url || null;
             } catch(e) { return null; }
         };
 
-        Swal.update({ html: 'جاري رفع الصور الأساسية...' });
         for (let url of finalMainImages) {
             const secureUrl = await uploadToCloudinary(url);
             if (secureUrl) cloudMainUrls.push(secureUrl);
         }
 
         currentColors = [];
-        if (extractedColors.length > 0) {
-            Swal.update({ html: `جاري رفع صور الألوان...` });
-            for (let colorObj of extractedColors) {
-                let secureColorUrl = (colorObj.url === finalMainImages[0] && cloudMainUrls[0]) ? cloudMainUrls[0] : await uploadToCloudinary(colorObj.url);
-                if (secureColorUrl) {
-                    currentColors.push({ name: colorObj.name, code: guessColorHex(colorObj.name), image: secureColorUrl });
-                }
-            }
+        for (let colorObj of extractedColors) {
+            let secureColorUrl = (colorObj.url === finalMainImages[0] && cloudMainUrls[0]) ? cloudMainUrls[0] : await uploadToCloudinary(colorObj.url);
+            if (secureColorUrl) currentColors.push({ name: colorObj.name, code: guessColorHex(colorObj.name), image: secureColorUrl });
         }
 
-        // ==========================================
-        // 🎯 حقن البيانات في الواجهة
-        // ==========================================
+        // حقن البيانات في الحقول
         document.getElementById("name").value = fetchedName;
         document.getElementById("price").value = fetchedPrice; 
         document.getElementById("images").value = cloudMainUrls.join(","); 
@@ -5007,20 +4948,46 @@ async function fetchProductData() {
 
         if(typeof syncPreviews === 'function') syncPreviews();
         if(typeof syncColors === 'function') syncColors(); 
-        if(typeof smartFormatDetails === 'function') smartFormatDetails();
 
-        Swal.fire({ 
-            icon: 'success', 
-            title: 'تم السحب بنجاح!', 
-            text: 'تم استخراج كافة البيانات بدقة من صفحة المنتج.',
-            timer: 3000, 
-            showConfirmButton: false 
-        });
+        Swal.fire('تم السحب بنجاح!', 'تم اختراق الحماية وجلب البيانات بنجاح.', 'success');
 
     } catch (error) {
-        console.error("Scraping Error:", error);
         Swal.fire('فشل الاتصال', error.message, 'error');
     }
+}
+
+// ==========================================
+// 💰 دالة سحب السعر فقط (للتحديث السريع)
+// ==========================================
+async function scrapePrice(idOrUrl) {
+    let targetUrl = idOrUrl.startsWith('http') ? idOrUrl : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(idOrUrl)}`;
+    
+    try {
+        let doc = await getElArabyHtml(targetUrl);
+        let mainProductDoc = doc;
+
+        if (!idOrUrl.startsWith('http') && doc.querySelector('.products.list.items.product-items')) {
+            const productCards = doc.querySelectorAll('.product-item-info');
+            let matchedLink = null;
+            const searchCode = idOrUrl.toLowerCase();
+            
+            for (let card of productCards) {
+                const titleEl = card.querySelector('.product-item-link');
+                if (titleEl && titleEl.innerText.toLowerCase().includes(searchCode)) {
+                    matchedLink = titleEl.href;
+                    break;
+                }
+            }
+            if (!matchedLink && productCards.length > 0) matchedLink = productCards[0].querySelector('.product-item-link')?.href;
+
+            if (matchedLink) mainProductDoc = await getElArabyHtml(matchedLink);
+        }
+
+        const priceSection = mainProductDoc.querySelector('.product-info-price') || mainProductDoc.querySelector('.product-info-main');
+        if (priceSection) return convertArabicToEnglishNumbers(priceSection.innerText);
+        
+    } catch (e) { console.error(e); }
+    return "0";
 }
 
 // وظيفة إرسال بيانات البائع عبر واتساب
