@@ -4802,44 +4802,79 @@ function convertArabicToEnglishNumbers(str) {
 }
 
 // ==========================================
-// 🚀 نظام جلب صفحات العربي (تخطي حماية Cloudflare النهائي)
+// 🚀 نظام جلب صفحات العربي (يتخطى الحظر ولا يعلق)
 // ==========================================
 async function getElArabyHtml(targetUrl) {
-    // ⚠️⚠️ ضع مفتاح ScraperAPI الخاص بك هنا بين علامات التنصيص ⚠️⚠️
-    const SCRAPER_API_KEY = "1f4a4154196b52af6261d4cee4c038f2"; 
+    const SCRAPER_API_KEY = ""; // اتركه فارغاً، سنعتمد على إضافة Allow CORS كخيار أساسي
 
-    // تنبيه للمستخدم إذا لم يضع المفتاح
-    if (!SCRAPER_API_KEY || SCRAPER_API_KEY === "1f4a4154196b52af6261d4cee4c038f2") {
-        throw new Error("جدار حماية العربي يمنع السحب المباشر.\nلحل المشكلة نهائياً: سجل مجاناً في scraperapi.com وضع الـ API Key الخاص بك في الكود وسيعمل فوراً.");
+    let proxies = [];
+    
+    // 1️⃣ الخيار الأول والأقوى: الاتصال المباشر (يعمل بفضل إضافة Allow CORS التي ثبتها أنت)
+    proxies.push(targetUrl);
+
+    // 2️⃣ الخيار الثاني: مفتاح API (إن وجد)
+    if (SCRAPER_API_KEY && SCRAPER_API_KEY.length > 5) {
+        proxies.push(`https://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true`);
+    } 
+    
+    // 3️⃣ الخيار الثالث: الخوادم المجانية كبديل أخير
+    proxies.push(
+        `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+    );
+
+    let lastError = "تأكد من تشغيل إضافة Allow CORS، أو من صحة الرابط.";
+
+    for (let proxy of proxies) {
+        try {
+            let res = await fetch(proxy, { cache: "no-store" });
+            if (!res.ok) continue;
+            
+            let text = await res.text();
+            
+            if (proxy.includes("allorigins")) {
+                try {
+                    let json = JSON.parse(text);
+                    if (!json.contents) continue;
+                    text = json.contents;
+                } catch(e) { continue; }
+            }
+            
+            // التأكد من أن Cloudflare لم يقم بصدنا
+            if (text.includes('challenge-running') || text.includes('Just a moment...')) {
+                lastError = "تم الصد من قبل Cloudflare.";
+                continue;
+            }
+            
+            let parser = new DOMParser();
+            let doc = parser.parseFromString(text, "text/html");
+
+            // 🎯 الفحص الدقيق للتأكد من نجاح جلب الصفحة (صفحة بحث أو صفحة منتج)
+            if (doc.querySelector('.products.list.items.product-items') || 
+                doc.querySelector('.product-info-price') || 
+                doc.querySelector('.data.item.content') || 
+                doc.querySelector('.product-info-main')) {
+                return doc; // نجحنا! نرجع الصفحة
+            }
+        } catch (e) {
+            console.warn("فشل اتصال الوكيل:", proxy);
+        }
     }
-
-    // بناء رابط الـ API لكسر الحماية (مع تفعيل render=true لجلب الصور المخفية)
-    const proxyUrl = `https://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}&render=true`;
-
-    try {
-        let res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error("تأكد من صحة مفتاح الـ API أو أن رابط المنتج صحيح.");
-        
-        let html = await res.text();
-        let parser = new DOMParser();
-        let doc = parser.parseFromString(html, "text/html");
-        
-        return doc;
-    } catch (e) {
-        throw new Error(e.message);
-    }
+    
+    // إذا فشلت كل المحاولات نرمي الخطأ (والذي سيتم التعامل معه بدون تجميد الشاشة)
+    throw new Error(lastError);
 }
-
 // ==========================================
-// 🎯 دالة سحب بيانات المنتج بالكامل (وفقاً للكلاسات المطلوبة)
+// 🎯 دالة سحب بيانات المنتج بالكامل (تطبيق الكلاسات وعلاج التجميد)
 // ==========================================
 async function fetchProductData() {
     const inputVal = document.getElementById("productId").value.trim();
     if (!inputVal) return Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج أولاً!', 'warning');
 
+    // إظهار نافذة التحميل
     Swal.fire({
         title: 'جاري السحب العميق...',
-        html: 'يتم الآن كسر الحماية وسحب البيانات والصور...',
+        html: 'يتم الآن جلب البيانات والصور...',
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
@@ -4851,7 +4886,7 @@ async function fetchProductData() {
         let doc = await getElArabyHtml(targetUrl);
         let mainProductDoc = doc;
 
-        // الدخول لصفحة المنتج إذا كنا في صفحة البحث
+        // إذا كنا في صفحة بحث، نعثر على رابط المنتج وندخل إليه
         if (!isDirectUrl && doc.querySelector('.products.list.items.product-items')) {
             const productCards = doc.querySelectorAll('.product-item-info');
             let matchedLink = null;
@@ -4869,25 +4904,25 @@ async function fetchProductData() {
             if (matchedLink) {
                 mainProductDoc = await getElArabyHtml(matchedLink);
             } else {
-                throw new Error("لم يتم العثور على منتج بهذا الكود.");
+                throw new Error("لم يتم العثور على منتج بهذا الكود في الموقع.");
             }
         }
 
         // ==========================================
-        // استخراج البيانات (تطبيق كلاساتك حرفياً)
+        // استخراج البيانات (وفقاً للكلاسات المطلوبة بالحرف)
         // ==========================================
         
-        // 1. استخراج الكود / الاسم (page-title)
+        // 1. استخراج الكود / الاسم (.page-title)
         let fetchedName = "";
         const titleEl = mainProductDoc.querySelector('.page-title') || mainProductDoc.querySelector('.product-info-main');
         if (titleEl) fetchedName = titleEl.innerText.replace(/\n/g, ' ').trim();
 
-        // 2. استخراج السعر (product-info-price)
+        // 2. استخراج السعر (.product-info-price)
         let fetchedPrice = "0";
         const priceSection = mainProductDoc.querySelector('.product-info-price') || mainProductDoc.querySelector('.product-info-main');
         if (priceSection) fetchedPrice = convertArabicToEnglishNumbers(priceSection.innerText);
 
-        // 3. استخراج التفاصيل (data item content)
+        // 3. استخراج التفاصيل (.data.item.content)
         let fetchedDetails = "";
         const detailsSection = mainProductDoc.querySelector('.data.item.content') || mainProductDoc.querySelector('.product-info-main');
         if (detailsSection) {
@@ -4899,7 +4934,7 @@ async function fetchProductData() {
             if (fetchedDetails) fetchedDetails = `[التفاصيل والمواصفات]\n` + fetchedDetails;
         }
 
-        // 4. استخراج الصور (product media)
+        // 4. استخراج الصور (.product.media)
         let allGalleryImages = [];
         const mediaSection = mainProductDoc.querySelector('.product.media') || mainProductDoc.querySelector('.product-info-main');
         if (mediaSection) {
@@ -4910,15 +4945,29 @@ async function fetchProductData() {
                 }
             });
         }
+        
+        // الخطة البديلة للصور (إذا أخفاها الموقع بالجافاسكربت)
+        if (allGalleryImages.length === 0) {
+            mainProductDoc.querySelectorAll('script[type="text/x-magento-init"]').forEach(script => {
+                if (script.textContent.includes('mage/gallery/gallery')) {
+                    try {
+                        const config = JSON.parse(script.textContent);
+                        const images = config['[data-gallery-role=gallery-placeholder]']['mage/gallery/gallery']['data'];
+                        images.forEach(img => { if (img.full || img.img) allGalleryImages.push((img.full || img.img).replace(/\/cache\/.*?\//g, '/')); });
+                    } catch (e) {}
+                }
+            });
+        }
+        
         allGalleryImages = [...new Set(allGalleryImages)];
         let finalMainImages = allGalleryImages.slice(0, 4);
 
-        // 5. استخراج لون إن وجد
+        // سحب لون من العنوان
         let extractedColors = [];
         let foundColor = extractColorFromTitle(fetchedName);
         if (foundColor && finalMainImages.length > 0) extractedColors.push({ name: foundColor, url: finalMainImages[0] });
 
-        // الرفع السحابي (Cloudinary)
+        // الرفع السحابي لـ Cloudinary
         let cloudMainUrls = [];
         const uploadToCloudinary = async (url) => {
             if(!url) return null;
@@ -4949,13 +4998,23 @@ async function fetchProductData() {
         if(typeof syncPreviews === 'function') syncPreviews();
         if(typeof syncColors === 'function') syncColors(); 
 
-        Swal.fire('تم السحب بنجاح!', 'تم اختراق الحماية وجلب البيانات بنجاح.', 'success');
+        // إغلاق أي نوافذ تحميل سابقة بقوة وإظهار النجاح
+        Swal.close(); 
+        setTimeout(() => { Swal.fire('تم السحب بنجاح!', 'تم جلب البيانات بدقة.', 'success'); }, 200);
 
     } catch (error) {
-        Swal.fire('فشل الاتصال', error.message, 'error');
+        console.error("Scraping Error:", error);
+        // 🔴 الحل الجذري لتجميد الشاشة في الصورة: إغلاق مؤشر التحميل أولاً
+        Swal.close(); 
+        setTimeout(() => {
+            Swal.fire({
+                icon: 'error',
+                title: 'فشل السحب',
+                text: error.message
+            });
+        }, 300);
     }
-}
-
+  }
 // ==========================================
 // 💰 دالة سحب السعر فقط (للتحديث السريع)
 // ==========================================
