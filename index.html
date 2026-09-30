@@ -4801,31 +4801,28 @@ function convertArabicToEnglishNumbers(str) {
     return "0";
 }
 
+
 // ==========================================
-// 🚀 نظام جلب صفحات العربي (يتخطى الحظر ولا يعلق)
-// ==========================================
-// ==========================================
-// 🚀 نظام جلب صفحات العربي (السريع بدون تعليق 1.5 ثانية)
+// 🚀 نظام جلب صفحات العربي (النسخة المتوافقة مع Chrome المحلي)
 // ==========================================
 async function getElArabyHtml(targetUrl) {
     const SCRAPER_API_KEY = "1f4a4154196b52af6261d4cee4c038f2"; 
 
-    // تم حذف render=true ليعود الرد في ثانية واحدة بدلاً من التعليق لـ 60 ثانية!
+    // رابط ScraperAPI السريع
     const scraperUrl = `https://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}`;
 
     const attempts = [
         { name: "ScraperAPI", url: scraperUrl },
-        { name: "AllOrigins", url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}` },
-        { name: "Direct", url: targetUrl }
+        { name: "الاتصال المباشر", url: targetUrl },
+        { name: "AllOrigins", url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}` }
     ];
 
     let lastError = "";
 
     for (let attempt of attempts) {
         try {
-            // حد أقصى 12 ثانية حتى لا تعلق الشاشة نهائياً
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 ثانية كحد أقصى لمنع التعليق
 
             let res = await fetch(attempt.url, { signal: controller.signal });
             clearTimeout(timeoutId);
@@ -4871,15 +4868,13 @@ async function getElArabyHtml(targetUrl) {
                 return doc; // نجاح قاطع وفوري!
             }
         } catch (e) {
-            lastError = e.name === 'AbortError' ? "انتهى الوقت المسموح (Timeout)" : "فشل اتصال شبكي";
+            lastError = e.name === 'AbortError' ? "انتهى الوقت (Timeout)" : "فشل اتصال شبكي (تأكد من تفعيل إذن الوصول للملفات في الإضافة)";
         }
     }
 
     throw new Error(lastError || "فشل الاتصال بجميع الخوادم");
 }
-// ==========================================
-// 🎯 دالة سحب بيانات المنتج بالكامل (تطبيق الكلاسات وعلاج التجميد)
-// ==========================================
+
 // ==========================================
 // 🎯 دالة سحب بيانات المنتج بالكامل (تطبيق الكلاسات بدقة)
 // ==========================================
