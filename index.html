@@ -4802,7 +4802,7 @@ function convertArabicToEnglishNumbers(str) {
 }
 
 // ==========================================
-// 🎨 دوال استنتاج وتحديد الألوان من اسم المنتج
+// 🎨 1. الدوال المساعدة للألوان وفلترة الأرقام
 // ==========================================
 function extractColorFromTitle(title) {
     if (!title) return null;
@@ -4838,20 +4838,100 @@ function guessColorHex(colorName) {
     return '#cccccc';
 }
 
-  
+function convertArabicToEnglishNumbers(str) {
+    if (!str) return "0";
+    let val = str.toString().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    val = val.replace(/ج\.م|egp|سعر|السعر/gi, '').replace(/[,،\s]/g, ''); 
+    let match = val.match(/\d+(\.\d+)?/);
+    if (match) {
+        let num = parseFloat(match[0]);
+        if (!isNaN(num) && num > 0) return num.toString();
+    }
+    return "0";
+}
+
 // ==========================================
-// 🚀 نظام جلب صفحات العربي
+// 🔍 2. دوال ذكية للتعرف على صفحات ماجنتو في العربي
+// ==========================================
+function isProductPage(doc) {
+    // صفحة المنتج تتميز بوجود كلاس product-info-main و page-title وعناصر الشراء
+    const hasMain = !!doc.querySelector('.product-info-main');
+    const hasPrice = !!doc.querySelector('.product-info-price') || !!doc.querySelector('meta[property="product:price:amount"]');
+    const hasSearchList = !!doc.querySelector('.products.list.items, .products-grid, .search.results');
+    return (hasMain && hasPrice) && !hasSearchList;
+}
+
+function extractPriceFromDoc(doc) {
+    const priceSection = doc.querySelector('.product-info-price') || doc.querySelector('.product-info-main');
+    if (priceSection) {
+        const finalPriceEl = priceSection.querySelector('[data-price-type="finalPrice"] .price') 
+                          || priceSection.querySelector('.special-price .price') 
+                          || priceSection.querySelector('.price');
+        let p = convertArabicToEnglishNumbers(finalPriceEl ? finalPriceEl.innerText : priceSection.innerText);
+        if (p && p !== "0") return p;
+    }
+    const metaPrice = doc.querySelector('meta[property="product:price:amount"]');
+    if (metaPrice && metaPrice.content) {
+        let p = convertArabicToEnglishNumbers(metaPrice.content);
+        if (p && p !== "0") return p;
+    }
+    return "0";
+}
+
+function getSearchCards(doc) {
+    let cards = doc.querySelectorAll('.product-item-info, .product-item, .products.list.items li');
+    return Array.from(cards).filter(card => !!card.querySelector('.product-item-link, a[href*=".html"]'));
+}
+
+function getCardLink(card) {
+    if (!card) return null;
+    const linkEl = card.querySelector('.product-item-link, a.photo, a[href*=".html"]');
+    if (!linkEl) return null;
+    let href = linkEl.getAttribute('href') || linkEl.href;
+    if (href && !href.startsWith('http')) {
+        href = `https://www.elarabygroup.com${href.startsWith('/') ? '' : '/'}${href}`;
+    }
+    return href;
+}
+
+function getCardPrice(card) {
+    if (!card) return "0";
+    const priceEl = card.querySelector('[data-price-type="finalPrice"] .price')
+                 || card.querySelector('.special-price .price')
+                 || card.querySelector('.price');
+    if (priceEl) {
+        return convertArabicToEnglishNumbers(priceEl.innerText);
+    }
+    return "0";
+}
+
+function findBestMatchingCard(cards, query) {
+    if (!cards || cards.length === 0) return null;
+    const cleanQuery = query.toLowerCase().trim();
+
+    for (let card of cards) {
+        const text = card.innerText.toLowerCase();
+        const link = (getCardLink(card) || '').toLowerCase();
+        if (text.includes(cleanQuery) || link.includes(cleanQuery)) {
+            return card;
+        }
+    }
+    // إذا لم يجد تطابقاً تاماً، نأخذ النتيجة الأولى تلقائياً وفقاً لترتيب محرك بحث العربي
+    return cards[0];
+}
+
+// ==========================================
+// 🚀 3. محرك الاتصال بـ ScraperAPI
 // ==========================================
 async function getElArabyHtml(targetUrl) {
     const SCRAPER_API_KEY = "1f4a4154196b52af6261d4cee4c038f2"; 
 
-    // طلب HTML خفيف وسريع بدون تشغيل متصفح كامل لتقليل وقت الاستجابة
     const scraperUrl = `https://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(targetUrl)}`;
 
     const attempts = [
-        { name: "ScraperAPI", url: scraperUrl, timeout: 35000 },
-        { name: "الاتصال المباشر", url: targetUrl, timeout: 15000 },
-        { name: "AllOrigins", url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, timeout: 15000 }
+        { name: "ScraperAPI", url: scraperUrl, timeout: 25000 },
+        { name: "الاتصال المباشر", url: targetUrl, timeout: 12000 },
+        { name: "AllOrigins", url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, timeout: 12000 }
     ];
 
     let lastError = "";
@@ -4907,87 +4987,65 @@ async function getElArabyHtml(targetUrl) {
 }
 
 // ==========================================
-// 🎯 دالة سحب بيانات المنتج بالكامل
+// 🎯 دالة سحب بيانات المنتج (مع البحث السريع الذكي)
 // ==========================================
-async function fetchProductData() {
+window.fetchProductData = async function() {
     let inputVal = document.getElementById("productId").value.trim();
     if (!inputVal) return Swal.fire('تنبيه', 'يرجى كتابة كود أو رابط المنتج أولاً!', 'warning');
 
     Swal.fire({
         title: 'جاري السحب...',
-        html: 'يتم الآن جلب بيانات ومواصفات وصور المنتج...',
+        html: 'يتم الآن الاتصال بموقع العربي وجلب البيانات...',
         allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
+        didOpen: () => Swal.showLoading()
     });
 
     try {
         let isDirectUrl = inputVal.startsWith('http://') || inputVal.startsWith('https://');
-        let targetUrl = isDirectUrl ? inputVal : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
+        let targetProductUrl = isDirectUrl ? inputVal : null;
 
-        let doc = await getElArabyHtml(targetUrl);
-        let mainProductDoc = doc;
-
-        // إذا كان البحث عن كود، نستخرج أول منتج مطابق من النتائج
+        // 1️⃣ إذا كان المُدخل كود منتج: نحصل على رابطه المباشر بأسرع طريقة
         if (!isDirectUrl) {
-            const productLinks = doc.querySelectorAll('.product-item-link, .product-item a.photo, .product-item-info a');
+            // محاولة جلب رابط المنتج عبر محرك البحث
+            const searchUrl = `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(inputVal)}`;
             
-            if (productLinks.length > 0) {
-                let matchedLink = null;
-                const cleanInput = inputVal.toLowerCase().replace(/[^a-z0-9]/gi, '');
+            // جلب صفحة البحث (أو صفحة المنتج في حال التحويل التلقائي)
+            let searchDoc = await getElArabyHtml(searchUrl);
 
-                for (let a of productLinks) {
-                    let linkText = a.innerText.toLowerCase().replace(/[^a-z0-9]/gi, '');
-                    let linkHref = (a.getAttribute('href') || '').toLowerCase();
-                    if (linkText.includes(cleanInput) || linkHref.includes(cleanInput)) {
-                        matchedLink = a.getAttribute('href') || a.href;
-                        break;
-                    }
-                }
-
-                if (!matchedLink) {
-                    matchedLink = productLinks[0].getAttribute('href') || productLinks[0].href;
-                }
-
-                if (matchedLink && !matchedLink.startsWith('http')) {
-                    matchedLink = `https://www.elarabygroup.com${matchedLink.startsWith('/') ? '' : '/'}${matchedLink}`;
-                }
-
-                if (matchedLink) {
-                    mainProductDoc = await getElArabyHtml(matchedLink);
-                } else {
-                    throw new Error("عُثر على نتائج ولكن تعذر فتح رابط المنتج.");
-                }
+            // أ) إذا قام موقع العربي بالتحويل التلقائي لصفحة المنتج
+            if (isProductPage(searchDoc)) {
+                targetProductUrl = "CURRENT_DOC"; // الصفحة الحالية هي صفحة المنتج بالفعل
+                var mainProductDoc = searchDoc;
             } else {
-                throw new Error(`لم تظهر أي نتائج للبحث عن الكود (${inputVal}). جرب نسخ رابط صفحة المنتج مباشرة.`);
+                // ب) البحث عن روابط المنتجات داخل النتائج
+                const cards = getSearchCards(searchDoc);
+                if (cards.length > 0) {
+                    const bestCard = findBestMatchingCard(cards, inputVal);
+                    targetProductUrl = getCardLink(bestCard);
+                } else {
+                    throw new Error(`لم يعثر محرك بحث العربي على أي منتج يطابق الكود (${inputVal}). يرجى نسخ رابط صفحة المنتج من الموقع ولصقه هنا مباشرة.`);
+                }
             }
         }
 
+        // 2️⃣ جلب صفحة المنتج النهائية إذا لم نكن فيها بالفعل
+        if (targetProductUrl && targetProductUrl !== "CURRENT_DOC") {
+            var mainProductDoc = await getElArabyHtml(targetProductUrl);
+        }
+
         // ==========================================
-        // 1. استخراج الاسم والكود
+        // 3️⃣ استخراج البيانات (المواصفات، السعر، الصور، الألوان)
         // ==========================================
+
+        // الاسم والكود
         let fetchedName = "";
         const titleEl = mainProductDoc.querySelector('.page-title') || mainProductDoc.querySelector('.product-info-main h1') || mainProductDoc.querySelector('h1');
         if (titleEl) fetchedName = titleEl.innerText.replace(/\n/g, ' ').trim();
 
-        // ==========================================
-        // 2. استخراج السعر
-        // ==========================================
-        let fetchedPrice = "0";
-        const priceSection = mainProductDoc.querySelector('.product-info-price') || mainProductDoc.querySelector('.product-info-main');
-        if (priceSection) {
-            const finalPriceEl = priceSection.querySelector('[data-price-type="finalPrice"] .price') 
-                              || priceSection.querySelector('.special-price .price') 
-                              || priceSection.querySelector('.price');
-            fetchedPrice = convertArabicToEnglishNumbers(finalPriceEl ? finalPriceEl.innerText : priceSection.innerText);
-        }
-        if (!fetchedPrice || fetchedPrice === "0") {
-            const metaPrice = mainProductDoc.querySelector('meta[property="product:price:amount"]');
-            if (metaPrice && metaPrice.content) fetchedPrice = convertArabicToEnglishNumbers(metaPrice.content);
-        }
+        // السعر
+        let fetchedPrice = extractPriceFromDoc(mainProductDoc);
 
-        // ==========================================
-        // 3. استخراج المواصفات والتفاصيل
-        // ==========================================
+        // التفاصيل والمواصفات
         let fetchedDetails = "";
         const detailsSection = mainProductDoc.querySelector('.data.item.content') 
                             || mainProductDoc.querySelector('#description')
@@ -5001,41 +5059,42 @@ async function fetchProductData() {
             if (fetchedDetails) fetchedDetails = `[التفاصيل والمواصفات]\n` + fetchedDetails;
         }
 
-        // ==========================================
-        // 4. استخراج الصور
-        // ==========================================
+        // الصور
         let allGalleryImages = [];
-        const mediaSection = mainProductDoc.querySelector('.product.media') || mainProductDoc.querySelector('.product-info-main');
+        const ogImage = mainProductDoc.querySelector('meta[property="og:image"]')?.content 
+                     || mainProductDoc.querySelector('meta[name="twitter:image"]')?.content;
+        if (ogImage && ogImage.startsWith('http')) {
+            allGalleryImages.push(ogImage.replace(/\/cache\/.*?\//g, '/'));
+        }
+
+        const mediaSection = mainProductDoc.querySelector('.product.media') 
+                          || mainProductDoc.querySelector('.gallery-placeholder')
+                          || mainProductDoc.querySelector('.product-info-main');
         if (mediaSection) {
             mediaSection.querySelectorAll('img').forEach(img => {
                 let src = img.getAttribute('data-src') || img.getAttribute('src') || img.getAttribute('data-origin');
-                if (src && src.startsWith('http') && !src.includes('loader') && !src.includes('spinner') && !src.includes('blank.gif')) {
-                    allGalleryImages.push(src.replace(/\/cache\/.*?\//g, '/'));
+                if (src && !src.includes('loader') && !src.includes('spinner') && !src.includes('blank.gif')) {
+                    if (src.startsWith('//')) src = 'https:' + src;
+                    else if (src.startsWith('/')) src = 'https://www.elarabygroup.com' + src;
+                    if (src.startsWith('http')) {
+                        allGalleryImages.push(src.replace(/\/cache\/.*?\//g, '/'));
+                    }
                 }
             });
         }
 
-        if (allGalleryImages.length === 0) {
-            mainProductDoc.querySelectorAll('script[type="text/x-magento-init"]').forEach(script => {
-                if (script.textContent.includes('mage/gallery/gallery')) {
-                    try {
-                        const config = JSON.parse(script.textContent);
-                        const images = config['[data-gallery-role=gallery-placeholder]']['mage/gallery/gallery']['data'];
-                        images.forEach(img => { 
-                            let full = img.full || img.img;
-                            if (full) allGalleryImages.push(full.replace(/\/cache\/.*?\//g, '/')); 
-                        });
-                    } catch (e) {}
-                }
-            });
-        }
+        let pageHtml = mainProductDoc.documentElement.innerHTML.replace(/\\\//g, '/');
+        let regexImages = pageHtml.match(/https?:\/\/[^"'\s<>]+\/media\/catalog\/product\/[^"'\s<>]+\.(?:jpg|jpeg|png|webp)/gi) || [];
+        regexImages.forEach(imgUrl => {
+            if (!imgUrl.includes('placeholder') && !imgUrl.includes('small_image')) {
+                allGalleryImages.push(imgUrl.replace(/\/cache\/.*?\//g, '/'));
+            }
+        });
 
-        allGalleryImages = [...new Set(allGalleryImages)];
-        let finalMainImages = allGalleryImages.slice(0, 4);
+        allGalleryImages = [...new Set(allGalleryImages)].filter(u => u && u.startsWith('http'));
+        let finalMainImages = allGalleryImages.slice(0, 5);
 
-        // ==========================================
-        // 5. استخراج الألوان بأمان (بدون أخطاء)
-        // ==========================================
+        // استخراج الألوان
         let extractedColors = [];
         if (typeof extractColorFromTitle === 'function') {
             let foundColor = extractColorFromTitle(fetchedName);
@@ -5044,9 +5103,7 @@ async function fetchProductData() {
             }
         }
 
-        // ==========================================
-        // 6. رفع الصور إلى Cloudinary
-        // ==========================================
+        // الرفع السحابي لـ Cloudinary
         let cloudMainUrls = [];
         const uploadToCloudinary = async (url) => {
             if (!url) return null;
@@ -5057,12 +5114,14 @@ async function fetchProductData() {
                 const res = await fetch(`https://api.cloudinary.com/v1_1/dkuow8vxw/image/upload`, { method: "POST", body: fd });
                 const d = await res.json();
                 return d.secure_url || null;
-            } catch(e) { return null; }
+            } catch(e) {
+                return null;
+            }
         };
 
         for (let url of finalMainImages) {
             const secureUrl = await uploadToCloudinary(url);
-            if (secureUrl) cloudMainUrls.push(secureUrl);
+            cloudMainUrls.push(secureUrl || url);
         }
 
         currentColors = [];
@@ -5070,13 +5129,11 @@ async function fetchProductData() {
             let secureColorUrl = (colorObj.url === finalMainImages[0] && cloudMainUrls[0]) 
                                  ? cloudMainUrls[0] 
                                  : await uploadToCloudinary(colorObj.url);
-            if (secureColorUrl) {
-                let code = (typeof guessColorHex === 'function') ? guessColorHex(colorObj.name) : '#cccccc';
-                currentColors.push({ name: colorObj.name, code: code, image: secureColorUrl });
-            }
+            let code = (typeof guessColorHex === 'function') ? guessColorHex(colorObj.name) : '#cccccc';
+            currentColors.push({ name: colorObj.name, code: code, image: secureColorUrl || colorObj.url });
         }
 
-        // تعبئة البيانات في الحقول
+        // حقن البيانات في الواجهة
         document.getElementById("name").value = fetchedName;
         document.getElementById("price").value = fetchedPrice; 
         document.getElementById("images").value = cloudMainUrls.join(","); 
@@ -5099,67 +5156,84 @@ async function fetchProductData() {
             });
         }, 150);
     }
-}
+};
+
 // ==========================================
-// 💰 دالة سحب وتحديث السعر الفردي بدقة
+// 💰 5. دالة زر "تحديث السعر فقط" (سريعة جداً بطلب واحد)
 // ==========================================
-async function scrapePrice(idOrUrl) {
-    let isDirectUrl = idOrUrl.startsWith('http');
+window.fetchPriceOnly = async function() {
+    const inputVal = document.getElementById("productId").value.trim();
+    if (!inputVal) {
+        return Swal.fire('تنبيه', 'يرجى إدخال كود أو رابط المنتج في خانة الكود أولاً!', 'warning');
+    }
+
+    Swal.fire({
+        title: 'جاري تحديث السعر...',
+        html: 'يتم الآن فحص السعر الحالي من موقع العربي...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        let price = await scrapePrice(inputVal);
+        Swal.close();
+
+        if (price && price !== "0" && price !== "") {
+            document.getElementById("price").value = price;
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `تم تحديث السعر: ${price} ج.م`,
+                showConfirmButton: false,
+                timer: 2500
+            });
+        } else {
+            Swal.fire('تنبيه', 'تعذر العثور على سعر لهذا المنتج، تأكد من صحة الكود أو الرابط.', 'warning');
+        }
+    } catch (e) {
+        console.error("Fetch Price Error:", e);
+        Swal.close();
+        Swal.fire('خطأ', 'حدث خطأ أثناء جلب السعر: ' + e.message, 'error');
+    }
+};
+
+// ==========================================
+// 💰 6. المحرك الموحد لسحب السعر (بدون تكرار الطلبات)
+// ==========================================
+window.scrapePrice = async function(idOrUrl) {
+    let isDirectUrl = idOrUrl.startsWith('http://') || idOrUrl.startsWith('https://');
     let targetUrl = isDirectUrl ? idOrUrl : `https://www.elarabygroup.com/ar/catalogsearch/result/?q=${encodeURIComponent(idOrUrl)}`;
 
     try {
         let doc = await getElArabyHtml(targetUrl);
-        let mainProductDoc = doc;
 
-        // إذا كان البحث عن كود، نتوجه فوراً لصفحة المنتج الحقيقية
-        const productCards = doc.querySelectorAll('.product-item-info');
-        if (!isDirectUrl && productCards.length > 0) {
-            let matchedLink = null;
-            const searchCode = idOrUrl.toLowerCase();
-
-            for (let card of productCards) {
-                const titleEl = card.querySelector('.product-item-link');
-                if (titleEl && titleEl.innerText.toLowerCase().includes(searchCode)) {
-                    let rawHref = titleEl.getAttribute('href') || titleEl.href;
-                    matchedLink = rawHref.startsWith('http') ? rawHref : `https://www.elarabygroup.com${rawHref.startsWith('/') ? '' : '/'}${rawHref}`;
-                    break;
-                }
-            }
-            if (!matchedLink) {
-                let firstLinkEl = productCards[0].querySelector('.product-item-link');
-                let rawHref = firstLinkEl?.getAttribute('href') || firstLinkEl?.href;
-                if (rawHref) {
-                    matchedLink = rawHref.startsWith('http') ? rawHref : `https://www.elarabygroup.com${rawHref.startsWith('/') ? '' : '/'}${rawHref}`;
-                }
-            }
-
-            if (matchedLink) {
-                mainProductDoc = await getElArabyHtml(matchedLink);
-            }
+        // أ) إذا تم التحويل تلقائياً لصفحة المنتج: نستخرج السعر فوراً
+        if (isProductPage(doc)) {
+            return extractPriceFromDoc(doc);
         }
 
-        // 1. محاولة استخراج السعر من الكلاس الأساسي أو السعر المخفض
-        const priceSection = mainProductDoc.querySelector('.product-info-price') || mainProductDoc.querySelector('.product-info-main');
-        if (priceSection) {
-            const finalPriceEl = priceSection.querySelector('[data-price-type="finalPrice"] .price') 
-                              || priceSection.querySelector('.special-price .price') 
-                              || priceSection.querySelector('.price');
-            let p = convertArabicToEnglishNumbers(finalPriceEl ? finalPriceEl.innerText : priceSection.innerText);
-            if (p && p !== "0") return p;
-        }
+        // ب) إذا كانت صفحة نتائج بحث: نسحب السعر مباشرة من أول كارت دون عمل طلب ثانٍ!
+        const cards = getSearchCards(doc);
+        if (cards.length > 0) {
+            const bestCard = findBestMatchingCard(cards, idOrUrl);
+            const cardPrice = getCardPrice(bestCard);
+            if (cardPrice && cardPrice !== "0") {
+                return cardPrice;
+            }
 
-        // 2. خطة بديلة قوية: قراءة السعر من وسم الميتا الصريح (Magento Meta Tag)
-        const metaPrice = mainProductDoc.querySelector('meta[property="product:price:amount"]');
-        if (metaPrice && metaPrice.content) {
-            let p = convertArabicToEnglishNumbers(metaPrice.content);
-            if (p && p !== "0") return p;
+            // خطة بديلة: فتح صفحة المنتج إذا لم يُكتب السعر على الكارت
+            const productLink = getCardLink(bestCard);
+            if (productLink) {
+                let productDoc = await getElArabyHtml(productLink);
+                return extractPriceFromDoc(productDoc);
+            }
         }
-
     } catch (e) {
         console.error("Scrape Price Error:", e);
     }
     return "0";
-}
+};
 // ==========================================
 // 2. نظام التحديث الشامل (Global Auto Sync)
 // ==========================================
